@@ -1,0 +1,9 @@
+{
+  "_id": "_design/playlist",
+  "views": {
+    "episodes": {
+      "map": "function (doc) {\n  if( doc.type == 'episode') {\n    for( var i=0, l=doc.playlist.length; i<l; i++) {\n      emit( [doc.playlist[i], doc.upload_date], { _id: doc._id });\n    }\n  }\n}"
+    }
+  },
+  "language": "javascript"
+}

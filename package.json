@@ -1,0 +1,32 @@
+{
+  "name": "yt-rss",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Convert youtube playlist to podcast",
+  "main": "index.js",
+  "scripts": {
+    "test": "\"\"",
+    "start": "node index"
+  },
+  "keywords": [
+    "youtube",
+    "rss",
+    "podcast"
+  ],
+  "author": "Larry Song",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "body-parser": "^1.15.0",
+    "child-process-promise": "^2.2.1",
+    "cookie-parser": "^1.4.1",
+    "express": "^4.13.4",
+    "feed": "^1.0.2",
+    "nano": "^6.2.0",
+    "nano-promises": "^1.2.0",
+    "request": "^2.72.0",
+    "rss": "^1.2.2",
+    "s3": "^4.4.0",
+    "streaming-s3": "^0.4.1",
+    "ytdl-core": "^0.12.1"
+  }
+}
