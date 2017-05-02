@@ -27,6 +27,7 @@ var config = require('../../env.json');
 var accessKeyId = config.object_storage.accessKeyId;
 var secretAccessKey = config.object_storage.secretAccessKey;
 var endpoint=config.object_storage.endpoint;
+var bucket_url =config.object_storage.bucket_url;
 var db_url = config.couchdb.db_url;
 
 var prom = require('nano-promises');
@@ -60,17 +61,19 @@ exports.add_playlist = function(req, res) {
 		let title = r[i].title;
 		let upload_date = r[i].upload_date;
 		let playlist_title = r[i].playlist_title;
-		check_file(url.substr(url.lastIndexOf('/') + 1) + '.m4a').then(function() {
+		let episode_id = url.substr(url.lastIndexOf('/') + 1);
+		let episode_file_name = episode_id + '.m4a';
+		let episode_s3_url = bucket_url + episode_file_name;
+		check_file(episode_file_name).then(function() {
 		    console.log("File already existing in Object Storage, no need to upload.");
 		}).catch(function() {
 		    // it's a new file, go download and upload to Object Storage
 		    console.log("File not in ICOS, go fetching and uploading...");
-		    fetch_episode(url).then(function(r) {
-			register_episode(playlist_id, url, r, title, upload_date, playlist_title);
-		    }).catch(function(e) {
+		    fetch_episode(url).catch(function(e) {
 			console.log(e);
 		    });
 		});
+		register_episode(playlist_id, episode_id, episode_s3_url, title, upload_date, playlist_title);
 	    }
 	})
 	.catch(function (e){
@@ -86,7 +89,7 @@ function playlist_episodes(playlist, n) {
 	var yd_cmd = yt_cmd +
 	    ' https://www.youtube.com/playlist?list=' +
 	    playlist +
-	    ' -J --playlist-items=1-' + n;
+	    ' -J --playlist-end=' + n;
 	console.log("youtube_dl command: " + yd_cmd);
 	exec(yd_cmd)
 	    .then(function(result) {
