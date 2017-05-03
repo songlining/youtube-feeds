@@ -6,7 +6,7 @@
   "main": "index.js",
   "scripts": {
     "test": "\"\"",
-    "start": "node index"
+    "start": "node index.js"
   },
   "keywords": [
     "youtube",
