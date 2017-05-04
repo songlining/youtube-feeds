@@ -91,7 +91,7 @@ function playlist_episodes(playlist, n) {
 	    playlist +
 	    ' -J --playlist-end=' + n;
 	console.log("youtube_dl command: " + yd_cmd);
-	exec(yd_cmd)
+	exec(yd_cmd, {maxBuffer: 40960*1020})
 	    .then(function(result) {
 		// console.log("playlist_episodes: " + result.stdout);
 		var j = JSON.parse(result.stdout);
