@@ -87,7 +87,11 @@ exports.add_playlist = function(req, res) {
 function playlist_episodes(playlist, n) {
     return new Promise(function(resolve, reject) {
 	let read_buffer = '';
-	let cmd = spawn('/usr/local/bin/youtube-dl', ['https://www.youtube.com/playlist?list=' + playlist, '-J', '--ignore-errors', '--playlist-end=' + n]);
+	let cmd = spawn(yt_cmd, 
+			['https://www.youtube.com/playlist?list=' + playlist, 
+			 '-J', 
+			 '--ignore-errors', 
+			 '--playlist-end=' + n]);
 	
 	cmd.stdout.on('data', (data) => {
 	    read_buffer = read_buffer + data;
@@ -95,7 +99,6 @@ function playlist_episodes(playlist, n) {
 	cmd.stderr.on('data', (data) => {
 	    console.log(`stderr: ${data}`);
 	});
-	
 	cmd.on('close', (code) => {
 	    console.log(`child process exited with code ${code}`);
 	    var j = JSON.parse(read_buffer);
