@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-var exec = require('child-process-promise').exec;
+const spawn = require('child_process').spawn;
 var yt_cmd = '/usr/local/bin/youtube-dl';
 
 var ytdl = require('ytdl-core');
@@ -33,7 +33,7 @@ var db_url = config.couchdb.db_url;
 var prom = require('nano-promises');
 var nano = require('nano')(db_url);
 var db = prom(nano).db.use('yt_rss');
-// test for a short one: curl -X PUT http://localhost:6003/api/playlist/PLtq51fIaqF1v3OA5pSmXbmJiYOKemjs-M
+
 // test for a short one: curl -X PUT http://localhost:6003/api/playlist/PLtq51fIaqF1tvW9savyaRWlhkpeBYYhWr
 // returns: [{"url":"tuSsCHhrpV8","title":"FT Sportster - Build | Flite Test"},{"url":"8l__ooIUCho","title":"FT Bronco Build | Flite Test"}]
 exports.show_episodes = function(req, res) {
@@ -86,29 +86,36 @@ exports.add_playlist = function(req, res) {
 // return the last n episodes of a playlist
 function playlist_episodes(playlist, n) {
     return new Promise(function(resolve, reject) {
-	var yd_cmd = yt_cmd +
-	    ' https://www.youtube.com/playlist?list=' +
-	    playlist +
-	    ' -J --playlist-end=' + n;
-	console.log("youtube_dl command: " + yd_cmd);
-	exec(yd_cmd, {maxBuffer: 1024*1024*10})
-	    .then(function(result) {
-		// console.log("playlist_episodes: " + result.stdout);
-		var j = JSON.parse(result.stdout);
-		var a = [];
-		var playlist_title = j.title;
-		register_playlist(playlist, {title: playlist_title});
-		j.entries.forEach(function(e) {
+	let read_buffer = '';
+	let cmd = spawn('/usr/local/bin/youtube-dl', ['https://www.youtube.com/playlist?list=' + playlist, '-J', '--ignore-errors', '--playlist-end=' + n]);
+	
+	cmd.stdout.on('data', (data) => {
+	    read_buffer = read_buffer + data;
+	});
+	cmd.stderr.on('data', (data) => {
+	    console.log(`stderr: ${data}`);
+	});
+	
+	cmd.on('close', (code) => {
+	    console.log(`child process exited with code ${code}`);
+	    var j = JSON.parse(read_buffer);
+	    console.log(j);
+	    var a = [];
+	    var playlist_title = j.title;
+	    register_playlist(playlist, {title: playlist_title});
+	    j.entries.forEach(function(e) {
+		// a private episode can be a null value in the array
+		// to test: 
+		// curl -X PUT http://localhost:6003/api/playlist/PLATwx1z00HsdanKZcTMQEc-n_Bhu_aZ76
+		if (e != null) {
 		    a.push({url: e.id,
 			    title: e.title,
 			    upload_date: e.upload_date,
 			    playlist_title: playlist_title});
-		});
-		resolve(a);
-	    })
-	    .catch(error => {
-		reject(error);
+		}
 	    });
+	    resolve(a);
+	});
     })
 }
 
