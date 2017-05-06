@@ -53,7 +53,7 @@ exports.show_episodes = function(req, res) {
 exports.add_playlist = function(req, res) {
     var url = req.url; 
     var playlist_id = url.substr(url.lastIndexOf('/') + 1);
-    playlist_episodes(playlist_id, 5)
+    playlist_episodes(playlist_id, 15)
 	.then(function(r) {
 	    res.end("Upload in progress...");
 	    for (var i = 0, len = r.length; i < len; i++) {
