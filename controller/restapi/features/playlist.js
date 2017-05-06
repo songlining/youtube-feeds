@@ -38,7 +38,7 @@ var db = prom(nano).db.use('yt_rss');
 // returns: [{"url":"tuSsCHhrpV8","title":"FT Sportster - Build | Flite Test"},{"url":"8l__ooIUCho","title":"FT Bronco Build | Flite Test"}]
 exports.show_episodes = function(req, res) {
     var url = req.url; // /api/playlist/PLhQSOxFylseE_9B7Brn7E6ok9expnYiey
-    playlist_episodes(url.substr(url.lastIndexOf('/') + 1), 15)
+    playlist_episodes(url.substr(url.lastIndexOf('/') + 1), 10)
 	.then(function(r) {
 	    res.send(JSON.stringify(r));
 	})
@@ -53,7 +53,7 @@ exports.show_episodes = function(req, res) {
 exports.add_playlist = function(req, res) {
     var url = req.url; 
     var playlist_id = url.substr(url.lastIndexOf('/') + 1);
-    playlist_episodes(playlist_id, 15)
+    playlist_episodes(playlist_id, 10)
 	.then(function(r) {
 	    res.end("Upload in progress...");
 	    for (var i = 0, len = r.length; i < len; i++) {
