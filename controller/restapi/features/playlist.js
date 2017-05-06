@@ -101,7 +101,11 @@ function playlist_episodes(playlist, n) {
 	});
 	cmd.on('close', (code) => {
 	    console.log(`child process exited with code ${code}`);
-	    var j = JSON.parse(read_buffer);
+	    try {
+		var j = JSON.parse(read_buffer);
+	    } catch(e) {
+		reject(e);
+	    }
 	    console.log(j);
 	    var a = [];
 	    var playlist_title = j.title;
