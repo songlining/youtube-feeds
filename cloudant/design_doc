@@ -3,6 +3,9 @@
   "views": {
     "episodes": {
       "map": "function (doc) {\n  if( doc.type == 'episode') {\n    for( var i=0, l=doc.playlist.length; i<l; i++) {\n      emit( [doc.playlist[i], doc.upload_date], { _id: doc._id });\n    }\n  }\n}"
+    },
+    "playlists": {
+      "map": "function (doc) {\n  if( doc.type == 'playlist') {\n    emit(doc.playlist, { _id: doc._id });\n  }\n}"
     }
   },
   "language": "javascript"
