@@ -34,26 +34,11 @@ var prom = require('nano-promises');
 var nano = require('nano')(db_url);
 var db = prom(nano).db.use('yt_rss');
 
-// test for a short one: curl -X PUT http://localhost:6003/api/playlist/PLtq51fIaqF1tvW9savyaRWlhkpeBYYhWr
-// returns: [{"url":"tuSsCHhrpV8","title":"FT Sportster - Build | Flite Test"},{"url":"8l__ooIUCho","title":"FT Bronco Build | Flite Test"}]
-exports.show_episodes = function(req, res) {
-    var url = req.url; // /api/playlist/PLhQSOxFylseE_9B7Brn7E6ok9expnYiey
-    playlist_episodes(url.substr(url.lastIndexOf('/') + 1), 10)
-	.then(function(r) {
-	    res.send(JSON.stringify(r));
-	})
-	.catch(function (e){
-	    var r = JSON.stringify(e);
-	    console.log(r);
-	    res.send(r);
-	});
-}
-
 // add one playlist and download the episodes
 exports.add_playlist = function(req, res) {
     var url = req.url; 
     var playlist_id = url.substr(url.lastIndexOf('/') + 1);
-    playlist_episodes(playlist_id, 10)
+    list_episodes(playlist_id, 10, 'playlist')
 	.then(function(r) {
 	    res.end("Upload in progress...");
 	    for (var i = 0, len = r.length; i < len; i++) {
@@ -84,9 +69,14 @@ exports.add_playlist = function(req, res) {
 }
 
 // return the last n episodes of a playlist
-function playlist_episodes(playlist, n) {
+function list_episodes(playlist, n, type) {
     return new Promise(function(resolve, reject) {
 	let read_buffer = '';
+	if (type == 'playlist') {
+	    var yt_url = `https://www.youtube.com/playlist?list=${playlist}`;
+	} else if (type == 'channel') {
+	    var yt_url = `https://www.youtube.com/channel/${playlist}`;
+	}
 	let cmd = spawn(yt_cmd, 
 			['https://www.youtube.com/playlist?list=' + playlist, 
 			 '-J', 
@@ -326,3 +316,26 @@ function check_file(file) {
 	});
     });
 }
+
+exports.list_feeds = function(req, res) {
+    db.view("playlist",
+	    "playlists",
+	    {
+		descending:true,
+		include_docs:true
+	    }
+	   ).then(function([body, headers]) {
+	       let r = body.rows;
+	       res.writeHead(200, {'Content-Type': 'text/html'});
+	       res.write('<head> <meta charset="UTF-8"> </head>');
+	       console.log(`r = ${JSON.stringify(r)}`);
+	       for (let i = 0, len = r.length; i < len; i++) {
+		   let id = r[i].doc._id;
+		   let title = r[i].doc.info.title;
+		   res.write(`<a href="/api/feed/${id}">${title}</a><p>`);
+	       }
+	       res.end();
+	   }).catch(function(err) {
+	       console.log(err);
+	   });
+};
