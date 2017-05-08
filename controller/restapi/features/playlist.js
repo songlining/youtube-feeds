@@ -332,7 +332,7 @@ exports.list_feeds = function(req, res) {
 	       for (let i = 0, len = r.length; i < len; i++) {
 		   let id = r[i].doc._id;
 		   let title = r[i].doc.info.title;
-		   res.write(`<a href="/api/feed/${id}">${title}</a><p>`);
+		   res.write(`<a href="/api/feed/${id}">${title}</a>  <a href="/api/playlist/${id}"><img border="0" alt="reload podcast" src="https://cdn0.iconfinder.com/data/icons/BrushedMetalIcons_meBaze/24/Reload-03.png" width="24" height="24"></a><p>`);
 	       }
 	       res.end();
 	   }).catch(function(err) {
