@@ -325,12 +325,28 @@ exports.list_feeds = function(req, res) {
 	   ).then(function([body, headers]) {
 	       let r = body.rows;
 	       res.writeHead(200, {'Content-Type': 'text/html'});
-	       res.write('<head> <meta charset="UTF-8"> </head>');
+	       res.write(
+`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Youtube Feeds</title>
+</head>
+<body>
+  <table>`
+	       );
 	       for (let i = 0, len = r.length; i < len; i++) {
 		   let id = r[i].doc._id;
 		   let title = r[i].doc.info.title;
-		   res.write(`<a href="/api/feed/${id}">${title}</a>  <a href="/api/playlist/${id}"><img border="0" alt="reload podcast" src="https://cdn0.iconfinder.com/data/icons/BrushedMetalIcons_meBaze/24/Reload-03.png" width="24" height="24"></a><p>`);
+		   res.write(
+		       `
+  <tr>
+    <td><a href="/api/feed/${id}">${title}</a></td>
+    <td><a href="/api/playlist/${id}"><img border="0" alt="reload podcast" src="https://cdn0.iconfinder.com/data/icons/BrushedMetalIcons_meBaze/24/Reload-03.png" width="24" height="24"></a></td>
+  </tr>`
+		   );
 	       }
+	       res.write(`</table></body></html>`);
 	       res.end();
 	   }).catch(function(err) {
 	       console.log(err);
