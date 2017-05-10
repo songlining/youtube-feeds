@@ -64,7 +64,7 @@ This URL can be put into your favorate podcast app such as _Podcast & Radio Addi
 A [Dockerfile](https://github.com/songlining/dockerfiles/blob/master/youtube-feeds/Dockerfile) has been provided to put everything into the container. Make sure env.json is in the same directory of the Dockerfile when running _docker build_.
 
 # How to use it?
-This application is writtin in a way that it doesn't have any touch on the storage.  Everything is either stored in Object Storage such as S3 or a CouchDB. If you want to setup a personal RSS feed like me you have various options either running the Node.js application in a VM or create a Docker container using the provided Dockerfile and then run the container either in a VM or in my case on the [IBM Kubernetes as a Service](https://console.ng.bluemix.net/catalog/?taxonomyNavigation=containers&category=containers). 
+This application is writtin in a way that it doesn't have any touch on the storage.  Everything is either stored in Object Storage such as S3 or a CouchDB. If you want to setup a personal RSS feed like me you have various options either running the Node.js application in a VM or create a Docker container using the provided Dockerfile and then run the container either in a VM or in my case on the [IBM Kubernetes as a Service](https://www.ibm.com/blogs/bluemix/2017/03/kubernetes-now-available-ibm-bluemix-container-service/). 
 
 If you use the free IBM K8S cluster you will be able to run your containers in a free node with 2 CPU's and 4GB of RAM. It's good enough to serve the podcast service for yourself.
 
