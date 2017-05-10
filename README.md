@@ -3,10 +3,12 @@ A Node.js application that converts youtube playlist into audio podcast feeds.
 
 ## Prerequisites
   * CouchDB: registry of the feeds
-  * S3 compatible Object Storage: audio files are stored here
+  * S3 API compatible Object Storage: audio files are stored here
 
 # REST API's
-The API's work around youtube playlists.  For example, here's the one I created for testing purpose: https://www.youtube.com/playlist?list=PLtq51fIaqF1v3OA5pSmXbmJiYOKemjs-M
+The API's work around youtube playlists.  For example, here's the one I created for testing purpose: 
+
+https://www.youtube.com/playlist?list=PLtq51fIaqF1v3OA5pSmXbmJiYOKemjs-M
 
 ## Create Audio Feeds from a playlist
 
@@ -17,7 +19,9 @@ This will trigger the application to:
  2. upload the episodes in audio format to an S3 compatible object storage
  3. register the episodes information in a CouchDB database
 
-For example, to test on localhost: curl -X GET http://localhost:6003/api/playlist/PLtq51fIaqF1v3OA5pSmXbmJiYOKemjs-M
+For example, to test on localhost: 
+
+curl -X GET http://localhost:6003/api/playlist/PLtq51fIaqF1v3OA5pSmXbmJiYOKemjs-M
 
 ## Retrieve Audio Feeds from a playlist
 
@@ -42,41 +46,6 @@ curl -X GET http://localhost:6003/api/feed/PL5iU7FJMp9AfEM7RGvSA7Zqldn_6-256O
             <guid>http://yt-rss.s3-api.us-geo.objectstorage.softlayer.net/nQUY8AVI-bQ.m4a</guid>
         </item>
         <item>
-            <title><![CDATA[Enstrom is back]]></title>
-            <link>http://yt-rss.s3-api.us-geo.objectstorage.softlayer.net/n04Vujw-ew0.m4a</link>
-            <guid>http://yt-rss.s3-api.us-geo.objectstorage.softlayer.net/n04Vujw-ew0.m4a</guid>
-        </item>
-        <item>
-            <title><![CDATA[Hollywood DC-3 at St. Simon Regional Fly In]]></title>
-            <link>http://yt-rss.s3-api.us-geo.objectstorage.softlayer.net/kLqLh270TIE.m4a</link>
-            <guid>http://yt-rss.s3-api.us-geo.objectstorage.softlayer.net/kLqLh270TIE.m4a</guid>
-        </item>
-        <item>
-            <title><![CDATA[C152 Reimagined]]></title>
-            <link>http://yt-rss.s3-api.us-geo.objectstorage.softlayer.net/emFGqo9qAZA.m4a</link>
-            <guid>http://yt-rss.s3-api.us-geo.objectstorage.softlayer.net/emFGqo9qAZA.m4a</guid>
-        </item>
-        <item>
-            <title><![CDATA[Flying the Eclipse 550]]></title>
-            <link>http://yt-rss.s3-api.us-geo.objectstorage.softlayer.net/W789q2tP9Qs.m4a</link>
-            <guid>http://yt-rss.s3-api.us-geo.objectstorage.softlayer.net/W789q2tP9Qs.m4a</guid>
-        </item>
-        <item>
-            <title><![CDATA[Rusty Pilot Larry Hill]]></title>
-            <link>http://yt-rss.s3-api.us-geo.objectstorage.softlayer.net/O_ST1tAY-ts.m4a</link>
-            <guid>http://yt-rss.s3-api.us-geo.objectstorage.softlayer.net/O_ST1tAY-ts.m4a</guid>
-        </item>
-        <item>
-            <title><![CDATA[Repo Man]]></title>
-            <link>http://yt-rss.s3-api.us-geo.objectstorage.softlayer.net/O4j3ynnEQKs.m4a</link>
-            <guid>http://yt-rss.s3-api.us-geo.objectstorage.softlayer.net/O4j3ynnEQKs.m4a</guid>
-        </item>
-        <item>
-            <title><![CDATA[Tecnam P2008]]></title>
-            <link>http://yt-rss.s3-api.us-geo.objectstorage.softlayer.net/G2QqmQLiJTM.m4a</link>
-            <guid>http://yt-rss.s3-api.us-geo.objectstorage.softlayer.net/G2QqmQLiJTM.m4a</guid>
-        </item>
-        <item>
             <title><![CDATA[Flying to the Bahamas]]></title>
             <link>http://yt-rss.s3-api.us-geo.objectstorage.softlayer.net/DLtdjA_qkYY.m4a</link>
             <guid>http://yt-rss.s3-api.us-geo.objectstorage.softlayer.net/DLtdjA_qkYY.m4a</guid>
@@ -95,4 +64,9 @@ This URL can be put into your favorate podcast app such as _Podcast & Radio Addi
 A [Dockerfile](https://github.com/songlining/dockerfiles/blob/master/youtube-feeds/Dockerfile) has been provided to put everything into the container. Make sure env.json is in the same directory of the Dockerfile when running _docker build_.
 
 # How to use it?
-This application is writtin in a way that it doesn't have any touch on the storage.  Everything is either stored in Object Storage such as S3 or a CouchDB.  If you want to setup a personal RSS feed like me you have various options either running the Node.js application in a VM or create a Docker container using the provided Dockerfile and then run the container either in a VM or in my case on the [IBM Kubernetes as a Service](https://console.ng.bluemix.net/catalog/?taxonomyNavigation=containers&category=containers). If you use the free IBM K8S cluster you will be able to run your containers in a free node with 2 CPU's and 4GB of RAM. It's good enough to serve the podcast service for yourself.
+This application is writtin in a way that it doesn't have any touch on the storage.  Everything is either stored in Object Storage such as S3 or a CouchDB. If you want to setup a personal RSS feed like me you have various options either running the Node.js application in a VM or create a Docker container using the provided Dockerfile and then run the container either in a VM or in my case on the [IBM Kubernetes as a Service](https://console.ng.bluemix.net/catalog/?taxonomyNavigation=containers&category=containers). 
+
+If you use the free IBM K8S cluster you will be able to run your containers in a free node with 2 CPU's and 4GB of RAM. It's good enough to serve the podcast service for yourself.
+
+## env.json
+[A sample env.json file](https://github.com/songlining/youtube-feeds/blob/master/controller/env.json) has been provided for your reference.  You need to populate this file with your own credentials.
