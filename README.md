@@ -20,4 +20,4 @@ _HTTP GET /api/feed/the-playlist-id_
 For example: curl -X GET http://localhost:6003/api/feed/PLtq51fIaqF1v3OA5pSmXbmJiYOKemjs-M
 
 # Containerization
-A [Dockerfile](https://github.com/songlining/dockerfiles/blob/master/youtube-feeds/Dockerfile) has been provided to put everything into the container.
+A [Dockerfile](https://github.com/songlining/dockerfiles/blob/master/youtube-feeds/Dockerfile) has been provided to put everything into the container. Make sure env.json is in the same directory of the Dockerfile when running _docker build_.
