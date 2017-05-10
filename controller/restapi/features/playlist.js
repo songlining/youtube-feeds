@@ -96,7 +96,6 @@ function list_episodes(playlist, n, type) {
 	    } catch(e) {
 		reject(e);
 	    }
-	    console.log(j);
 	    var a = [];
 	    var playlist_title = j.title;
 	    register_playlist(playlist, {title: playlist_title});
@@ -149,7 +148,6 @@ function fetch_episode(url) {
 
 	uploader.begin();
 	uploader.on('data', function (bytesRead) {
-	    // console.log(bytesRead, ' bytes read.');
 	    process.stdout.write('.');
 	});
 	uploader.on('part', function (number) {
@@ -328,7 +326,6 @@ exports.list_feeds = function(req, res) {
 	       let r = body.rows;
 	       res.writeHead(200, {'Content-Type': 'text/html'});
 	       res.write('<head> <meta charset="UTF-8"> </head>');
-	       console.log(`r = ${JSON.stringify(r)}`);
 	       for (let i = 0, len = r.length; i < len; i++) {
 		   let id = r[i].doc._id;
 		   let title = r[i].doc.info.title;
