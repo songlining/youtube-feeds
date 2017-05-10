@@ -1,5 +1,7 @@
 # youtube-feeds
-A Node.js application that converts youtube playlist into audio podcast feeds.
+A Node.js application that converts youtube playlist into audio podcast feeds. 
+
+You can use it to DIY your own podcast service that turns your favorite youtube list (music?) into ads-free high quality audio podcast.
 
 ## Prerequisites
   * CouchDB: registry of the feeds
