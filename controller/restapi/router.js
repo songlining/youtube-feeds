@@ -22,4 +22,5 @@ module.exports = router;
 // router.get('/api/playlist/*', playlist.show_episodes);
 router.get('/api/playlist/*', playlist.add_playlist);
 router.get('/api/feed/*', playlist.playlist_feed);
+router.post('/api/url', playlist.process_url);
 router.get('/index.html', playlist.list_feeds);

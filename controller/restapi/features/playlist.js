@@ -38,7 +38,7 @@ var db = prom(nano).db.use('yt_rss');
 exports.add_playlist = function(req, res) {
     var url = req.url; 
     var playlist_id = url.substr(url.lastIndexOf('/') + 1);
-    list_episodes(playlist_id, 10, 'playlist')
+    list_episodes(playlist_id, 10)
 	.then(function(r) {
 	    res.end("Upload in progress...");
 	    for (var i = 0, len = r.length; i < len; i++) {
@@ -69,14 +69,9 @@ exports.add_playlist = function(req, res) {
 }
 
 // return the last n episodes of a playlist
-function list_episodes(playlist, n, type) {
+function list_episodes(playlist, n) {
     return new Promise(function(resolve, reject) {
 	let read_buffer = '';
-	if (type == 'playlist') {
-	    var yt_url = `https://www.youtube.com/playlist?list=${playlist}`;
-	} else if (type == 'channel') {
-	    var yt_url = `https://www.youtube.com/channel/${playlist}`;
-	}
 	let cmd = spawn(yt_cmd, 
 			['https://www.youtube.com/playlist?list=' + playlist, 
 			 '-J', 
@@ -326,24 +321,24 @@ exports.list_feeds = function(req, res) {
 	       let r = body.rows;
 	       res.writeHead(200, {'Content-Type': 'text/html'});
 	       res.write(
-`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <title>Youtube Feeds</title>
-</head>
-<body>
-  <table>`
+		   `<!DOCTYPE html>
+		       <html>
+		       <head>
+		       <meta charset="UTF-8">
+		       <title>Youtube Feeds</title>
+		       </head>
+		       <body>
+		       <table>`
 	       );
 	       for (let i = 0, len = r.length; i < len; i++) {
 		   let id = r[i].doc._id;
 		   let title = r[i].doc.info.title;
 		   res.write(
 		       `
-  <tr>
-    <td><a href="/api/feed/${id}">${title}</a></td>
-    <td><a href="/api/playlist/${id}"><img border="0" alt="reload podcast" src="https://cdn0.iconfinder.com/data/icons/BrushedMetalIcons_meBaze/24/Reload-03.png" width="24" height="24"></a></td>
-  </tr>`
+			   <tr>
+			   <td><a href="/api/feed/${id}">${title}</a></td>
+			   <td><a href="/api/playlist/${id}"><img border="0" alt="reload podcast" src="https://cdn0.iconfinder.com/data/icons/BrushedMetalIcons_meBaze/24/Reload-03.png" width="24" height="24"></a></td>
+			   </tr>`
 		   );
 	       }
 	       res.write(`</table></body></html>`);
@@ -352,3 +347,39 @@ exports.list_feeds = function(req, res) {
 	       console.log(err);
 	   });
 };
+
+// retrieve playlist id from channel or user URLs
+exports.process_url = function(req, res) {
+    let url = req.body.url;
+    if (url.startsWith('https://www.youtube.com/user/') || 
+	url.startsWith('https://www.youtube.com/channel/')) {
+	let read_buffer = '';
+	let cmd = spawn(yt_cmd, 
+			[url,
+			 '-J', 
+			 '--ignore-errors', 
+			 '--playlist-end=1']);
+	
+	cmd.stdout.on('data', (data) => {
+	    read_buffer = read_buffer + data;
+	});
+	cmd.stderr.on('data', (data) => {
+	    console.log(`stderr: ${data}`);
+	});
+	cmd.on('close', (code) => {
+	    console.log(`child process exited with code ${code}`);
+	    try {
+		var j = JSON.parse(read_buffer);
+	    } catch(e) {
+		console.log(e);
+	    }
+	    let playlist_url = j.webpage_url;
+	    var playlist_id = playlist_url.substr(playlist_url.lastIndexOf('=') + 1);
+	    res.writeHead(200, {"Content-Type": "application/json"});
+	    res.end(JSON.stringify({playlist_id: playlist_id}));
+	});
+    } else {
+	res.writeHead(200, {"Content-Type": "application/json"});
+	res.end(JSON.stringify({error: "Wrong URL format"}));
+    }
+}
