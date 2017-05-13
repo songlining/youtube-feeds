@@ -84,6 +84,8 @@ function list_episodes(playlist, n) {
 	});
 	cmd.stderr.on('data', (data) => {
 	    console.log(`stderr: ${data}`);
+	    reject(data);
+	    return;
 	});
 	cmd.on('close', (code) => {
 	    console.log(`child process exited with code ${code}`);
@@ -91,10 +93,17 @@ function list_episodes(playlist, n) {
 		var j = JSON.parse(read_buffer);
 	    } catch(e) {
 		reject(e);
+		return;
 	    }
 	    var a = [];
-	    var playlist_title = j.title;
-	    register_playlist(playlist, {title: playlist_title});
+	    try {
+		var playlist_title = j.title;
+	    } catch (e) {
+		console.log("Got error, reject the promise.")
+		reject(e);
+		return;
+	    }
+	    register_playlist('playlist:' + playlist, {title: playlist_title});
 	    j.entries.forEach(function(e) {
 		// a private episode can be a null value in the array
 		// to test: 
@@ -161,6 +170,7 @@ function fetch_episode(url) {
 	    console.log('Upload error: ', e);
 	    uploader.end();
 	    reject(e);
+	    return;
 	});
     })
 }
@@ -215,7 +225,7 @@ exports.playlist_feed = function(req, res) {
 // https://www.npmjs.com/package/feed
 function playlist_to_feed(playlist) {
     return new Promise(function(resolve, reject) {
-	playlist_info(playlist).then(function(info) {
+	playlist_info('playlist:' + playlist).then(function(info) {
 	    let feed = new Feed({
 		title: info.title,
 		// id: 'http://example.com/',
@@ -243,6 +253,7 @@ function playlist_to_feed(playlist) {
 		       resolve(feed.rss2());
 		   }).catch(function(err) {
 		       reject(err);
+		       return;
 		   });
 	});
     })
@@ -251,17 +262,18 @@ function playlist_to_feed(playlist) {
 function register_playlist(playlist, info) {
     return new Promise(function(resolve, reject) {
 	db.get(playlist).then(function(r) {
-	    console.log("Playlist " + playlist + " already registered.");
+	    console.log(playlist + " already registered.");
 	    resolve();
 	}).catch(function(e) {
 	    if (e.statusCode = 404) {
 		// playlist does not exist in registry
 		db.insert({type: "playlist", info: info}, playlist).then(function([body, headers]) {
-		    console.log("Playlist " + playlist + " registered");
+		    console.log(playlist + " registered");
 		    resolve();
 		}).catch(function(e) {
-		    console.log("Error registering playlist " + playlist + ". Error: " + e);
+		    console.log("Error registering " + playlist + ". Error: " + e);
 		    reject(e);
+		    return;
 		});
 	    }
 	});
@@ -274,6 +286,7 @@ function playlist_info(playlist) {
 	    resolve(r[0].info)
 	}).catch(function(e) {
 	    reject(e);
+	    return;
 	});
     })
 }
@@ -304,6 +317,7 @@ function check_file(file) {
 	    if (err) {
 		// file does not exist (err.statusCode == 404)
 		reject(err);
+		return;
 	    }
 	    // file exists
 	    resolve(data);
@@ -333,12 +347,13 @@ exports.list_feeds = function(req, res) {
 	       );
 	       for (let i = 0, len = r.length; i < len; i++) {
 		   let id = r[i].doc._id;
+		   let playlist_id = id.substr(id.lastIndexOf(':') + 1);
 		   let title = r[i].doc.info.title;
 		   res.write(
 		       `
 			   <tr>
-			   <td><a href="/api/feed/${id}">${title}</a></td>
-			   <td><a href="/api/playlist/${id}"><img border="0" alt="reload podcast" src="https://cdn0.iconfinder.com/data/icons/BrushedMetalIcons_meBaze/24/Reload-03.png" width="24" height="24"></a></td>
+			   <td><a href="/api/feed/${playlist_id}">${title}</a></td>
+			   <td><a href="/api/playlist/${playlist_id}"><img border="0" alt="reload podcast" src="https://cdn0.iconfinder.com/data/icons/BrushedMetalIcons_meBaze/24/Reload-03.png" width="24" height="24"></a></td>
 			   </tr>`
 		   );
 	       }
