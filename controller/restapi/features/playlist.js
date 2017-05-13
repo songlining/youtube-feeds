@@ -186,7 +186,7 @@ function register_episode(playlist,
 	})
 	.catch(function(err) {
 	    if (err.statusCode == 409 && err.error == 'conflict') {
-		console.log("Warning: Episode already in registry.");
+		console.log(`Warning: Episode ${title}: ${episode_id} already in registry.`);
 		db.get(episode_id).then(function(r) {
 		    let e = r[0];
 		    let rev = e._rev;
