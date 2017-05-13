@@ -46,8 +46,9 @@ exports.add_playlist = function(req, res) {
 		let title = r[i].title;
 		let upload_date = r[i].upload_date;
 		let playlist_title = r[i].playlist_title;
-		let episode_id = url.substr(url.lastIndexOf('/') + 1);
-		let episode_file_name = episode_id + '.m4a';
+		// episode_id will be used as _id and it can not start with underscore in CouchDB
+		let episode_id = 'episode:' + url.substr(url.lastIndexOf('/') + 1);
+		let episode_file_name = url.substr(url.lastIndexOf('/') + 1) + '.m4a';
 		let episode_s3_url = bucket_url + episode_file_name;
 		check_file(episode_file_name).then(function() {
 		    console.log("File already existing in Object Storage, no need to upload.");
