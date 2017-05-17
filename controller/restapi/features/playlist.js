@@ -84,8 +84,6 @@ function list_episodes(playlist, n) {
 	});
 	cmd.stderr.on('data', (data) => {
 	    console.log(`stderr: ${data}`);
-	    reject(data);
-	    return;
 	});
 	cmd.on('close', (code) => {
 	    console.log(`child process exited with code ${code}`);
