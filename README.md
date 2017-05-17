@@ -25,6 +25,10 @@ For example, to test on localhost:
 
 curl -X GET http://localhost:6003/api/playlist/PLtq51fIaqF1v3OA5pSmXbmJiYOKemjs-M
 
+## Delete the playlist with its episodes
+
+_HTTP DELETE /api/playlist/the-playlist-id_
+
 ## Retrieve Audio Feeds from a playlist
 
 _HTTP GET /api/feed/the-playlist-id_
