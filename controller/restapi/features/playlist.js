@@ -365,6 +365,7 @@ exports.list_feeds = function(req, res) {
 };
 
 // retrieve playlist id from channel or user URLs
+// curl --data "url=https://www.youtube.com/channel/UC9nnWZ9kRiNZ6d5UwF-sNKQ" http://localhost:6003/api/url
 exports.process_url = function(req, res) {
     let url = req.body.url;
     if (url.startsWith('https://www.youtube.com/user/') || 
@@ -398,4 +399,150 @@ exports.process_url = function(req, res) {
 	res.writeHead(200, {"Content-Type": "application/json"});
 	res.end(JSON.stringify({error: "Wrong URL format"}));
     }
+}
+
+// input sample: [ {Key: 'B7bqAsxee4I.m4a'}, {Key: 'BlKWMKpSiW0.m4a'} ];
+function s3_delete_files(files) {	
+    return new Promise(function(resolve, reject) {
+	console.log(`Files to be deleted from S3: ${JSON.stringify(files)}`);
+	if (files.length == 0) {
+	    console.log(`s3_delete_files: input error - empty array`);
+	    reject('input error: empty array');
+	    return;
+	}
+	var client = s3.createClient({
+	    maxAsyncS3: 20, // this is the default
+	    s3RetryCount: 3, // this is the default
+	    s3RetryDelay: 1000, // this is the default
+	    multipartUploadThreshold: 20971520, // this is the default (20 MB)
+	    multipartUploadSize: 15728640, // this is the default (15 MB)
+	    s3Options: {
+		accessKeyId: accessKeyId,
+		secretAccessKey: secretAccessKey,
+		region: "us-standard",
+		endpoint: endpoint,
+		sslEnabled: true
+	    }
+	});
+
+	let params = {
+	    Bucket: 'yt-rss',
+	    Delete: {Objects: files},
+	    Quiet: false
+	};
+	client.deleteObjects(params, function(err, data) {
+	    if (err) {
+		console.log(`Error deleting from S3: ${err}`);
+		reject(err);
+		return;
+	    } else {
+		console.log(`${data} deleted from S3`);
+		resolve(data); // there might be a bug around this resolve - deleteObjects not returning properly?
+	    }
+	});
+    });
+}
+
+function remove_playlist(playlist) {
+    return new Promise(function(resolve, reject) {
+	db.view("playlist",
+		"episodes",
+		{
+		    startkey:[playlist, {}],
+		    endkey:[playlist, null],
+		    descending:true,
+		    include_docs:true
+		}
+	       ).then(function([body, headers]) {
+		   let r = body.rows;
+		   if (r.length == 0) {
+		       console.log("No such playlist, exit.");
+		       reject("playlist not exist");
+		       return;
+		   }
+		   let files_to_delete = [];
+		   let keep_playlist = false;
+		   for (let i = 0, len = r.length; i < len; i++) {
+		       let doc = r[i].doc;
+		       let pl = doc.playlist;
+		       let url = doc.s3_url;
+		       let id = doc._id;
+		       let rev = doc._rev;
+		       // remove the playlist from the array
+		       let index = pl.indexOf(playlist);
+		       if (index > -1) {
+			   pl.splice(index, 1);
+		       }
+		       if (pl.length == 0) {
+			   // array is empty, episode will be removed
+			   let s3_file_name = url.substr(url.lastIndexOf('/') + 1);
+			   files_to_delete.push({Key: s3_file_name});
+			   // remove the doc
+			   db.destroy(id, rev).catch(function(err) {
+			       console.error(err);
+			   });
+		       } else if (pl.length > 0) {
+			   // array is not empty yet, episode will be kept. doc.playlist will be updated
+			   // type "playlist" doc will be kept
+			   keep_playlist = true;
+			   doc.playlist = pl;
+			   db.insert(doc, id, rev)
+			       .then(function([body, headers]) {
+				   console.log("Episode " + id + ": playlist updated.")
+			       })
+			       .catch(function(err) {
+				   console.log("Episode playlist update error: " + err)
+			       });
+		       }
+		   }
+		   if (!keep_playlist) {
+		       // playlist doc to be removed
+		       db.get(`playlist:${playlist}`)
+			   .then(function([body, headers]) {
+			       db.destroy(body._id, body._rev)
+				   .then(function([body, headers]) {
+				       console.log(`playlist doc ${playlist} destroyed`);
+				   })
+				   .catch(function(err) {
+				       console.error(`Removing playlist doc with error: ${err}`);
+				       reject('error destroying playlist doc');
+				       return;
+				   });
+			   })
+			   .catch(err => {
+			       console.error(`Get playlist doc with error: ${err}`);
+			       reject('error getting playlist doc');
+			       return;
+			   });
+		   }
+		   s3_delete_files(files_to_delete)
+		       .then(() => {
+			   console.log("s3 files deleted");
+		       })
+		       .catch(e => {
+			   console.log("s3 file deletion error: " + e);
+			   reject('s3 file deletion error:' + e);
+			   return;
+		       });
+		   resolve(playlist); // s3_delete_files might have a bug due to the s3 promise not returning.
+	       }).catch(err => {
+		   reject(err);
+		   return;
+	       });
+    })
+}
+
+exports.remove_playlist = function(req, res) {
+    var url = req.url; 
+    var playlist = url.substr(url.lastIndexOf('/') + 1);
+    console.log(`playlist: ${playlist}`);
+    remove_playlist(playlist)
+	.then(() => {
+	    res.writeHead(200, {"Content-Type": "application/json"});
+	    res.end(JSON.stringify({result: "success"}));
+	})
+	.catch(() => {
+	    res.writeHead(200, {"Content-Type": "application/json"});
+	    res.end(JSON.stringify({result: "failure"}));
+	});
 }
