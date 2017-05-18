@@ -428,16 +428,16 @@ function s3_delete_files(files) {
 	    Delete: {Objects: files},
 	    Quiet: false
 	};
-	client.deleteObjects(params, function(err, data) {
-	    if (err) {
-		console.log(`Error deleting from S3: ${err}`);
-		reject(err);
-		return;
-	    } else {
-		console.log(`${data} deleted from S3`);
-		resolve(data); // there might be a bug around this resolve - deleteObjects not returning properly?
-	    }
+	let d = client.deleteObjects(params);
+	d.on('error', function(err) {
+	    console.log(`Error while deleting S3 files: err`);
+	    reject(err);
 	});
+	d.on('end', function() {
+	    console.log(`S3 files deletion complete`);
+	    resolve('delete complete');
+	});
+	
     });
 }
 
@@ -454,12 +454,20 @@ function remove_playlist(playlist) {
 	       ).then(function([body, headers]) {
 		   let r = body.rows;
 		   if (r.length == 0) {
-		       console.log("No such playlist, exit.");
-		       reject("playlist not exist");
+		       console.log("No episodes exist under this playlist");
+		       // need to check whether the playlist doc is still there, 
+		       delete_playlist_doc(playlist)
+			   .then(function(data) {
+			       console.log(`Playlist ${playlist} has been deleted`)
+			       reject("playlist doc has been deleted");
+			   })
+			   .catch(function(e) {
+			       console.log(`Playlist ${playlist} does not exist: ${e}`)
+			       reject("playlist doc non-exist");
+			   });
 		       return;
 		   }
 		   let files_to_delete = [];
-		   let keep_playlist = false;
 		   for (let i = 0, len = r.length; i < len; i++) {
 		       let doc = r[i].doc;
 		       let pl = doc.playlist;
@@ -476,58 +484,68 @@ function remove_playlist(playlist) {
 			   let s3_file_name = url.substr(url.lastIndexOf('/') + 1);
 			   files_to_delete.push({Key: s3_file_name});
 			   // remove the doc
+			   console.log(`removing ${doc}`);
 			   db.destroy(id, rev).catch(function(err) {
 			       console.error(err);
 			   });
 		       } else if (pl.length > 0) {
 			   // array is not empty yet, episode will be kept. doc.playlist will be updated
-			   // type "playlist" doc will be kept
-			   keep_playlist = true;
 			   doc.playlist = pl;
-			   db.insert(doc, id, rev)
-			       .then(function([body, headers]) {
-				   console.log("Episode " + id + ": playlist updated.")
+			   db.insert(doc)
+			       .then(function(r) {
+			       	   console.log("Episode " + id + ": playlist updated.")
 			       })
 			       .catch(function(err) {
 				   console.log("Episode playlist update error: " + err)
 			       });
 		       }
 		   }
-		   if (!keep_playlist) {
-		       // playlist doc to be removed
-		       db.get(`playlist:${playlist}`)
-			   .then(function([body, headers]) {
-			       db.destroy(body._id, body._rev)
-				   .then(function([body, headers]) {
-				       console.log(`playlist doc ${playlist} destroyed`);
-				   })
-				   .catch(function(err) {
-				       console.error(`Removing playlist doc with error: ${err}`);
-				       reject('error destroying playlist doc');
-				       return;
-				   });
+		   // playlist doc to be removed
+		   delete_playlist_doc(playlist)
+		       .then(function(data) {
+			   console.log(`Playlist ${playlist} has been deleted`)
+		       })
+		       .catch(function(e) {
+			   console.log(`Playlist ${playlist} deletion error: ${e}`)
+		       });
+		   if (files_to_delete.length > 0) {
+		       s3_delete_files(files_to_delete)
+			   .then(function() {
+			       console.log("s3 files deleted");
 			   })
-			   .catch(err => {
-			       console.error(`Get playlist doc with error: ${err}`);
-			       reject('error getting playlist doc');
+			   .catch(function(e) {
+			       console.log("s3 file deletion error: " + e);
+			       reject('s3 file deletion error:' + e);
 			       return;
 			   });
 		   }
-		   s3_delete_files(files_to_delete)
-		       .then(() => {
-			   console.log("s3 files deleted");
-		       })
-		       .catch(e => {
-			   console.log("s3 file deletion error: " + e);
-			   reject('s3 file deletion error:' + e);
-			   return;
-		       });
-		   resolve(playlist); // s3_delete_files might have a bug due to the s3 promise not returning.
-	       }).catch(err => {
+		   resolve(playlist); 
+	       }).catch(function(err) {
 		   reject(err);
 		   return;
 	       });
     })
+}
+
+function delete_playlist_doc(playlist) {
+    return new Promise(function(resolve, reject) {
+	db.get(`playlist:${playlist}`)
+	    .then(function([body, headers]) {
+		db.destroy(body._id, body._rev)
+		    .then(function([body, headers]) {
+			console.log(`playlist doc ${playlist} destroyed`);
+			resolve(playlist);
+		    })
+		    .catch(function(err) {
+			console.error(`Removing playlist doc with error: ${err}`);
+			reject('error destroying playlist doc' + err);
+		    })
+	    })
+	    .catch(function(err) {
+		console.error(`Get playlist doc with error: ${err}`);
+		reject(err);
+	    });
+    });
 }
 
 exports.remove_playlist = function(req, res) {
@@ -535,11 +553,11 @@ exports.remove_playlist = function(req, res) {
     var playlist = url.substr(url.lastIndexOf('/') + 1);
     console.log(`playlist: ${playlist}`);
     remove_playlist(playlist)
-	.then(() => {
+	.then(function() {
 	    res.writeHead(200, {"Content-Type": "application/json"});
 	    res.end(JSON.stringify({result: "success"}));
 	})
-	.catch(() => {
+	.catch(function () {
 	    res.writeHead(200, {"Content-Type": "application/json"});
 	    res.end(JSON.stringify({result: "failure"}));
 	});
