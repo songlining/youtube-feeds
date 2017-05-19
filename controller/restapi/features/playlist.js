@@ -216,7 +216,10 @@ function register_episode(playlist,
 exports.playlist_feed = function(req, res) {
     var url = req.url; // /api/feed/PLhQSOxFylseE_9B7Brn7E6ok9expnYiey
     playlist_to_feed(url.substr(url.lastIndexOf('/') + 1)).then(function(body) {
-	res.send(body);
+	res.end(body);
+    }).catch(function(e) {
+	res.writeHead(200, {"Content-Type": "application/json"});
+	res.end(JSON.stringify({result: "playlist not found"}));
     });
 }
 
@@ -253,6 +256,8 @@ function playlist_to_feed(playlist) {
 		       reject(err);
 		       return;
 		   });
+	}).catch(function(e) {
+	    reject(e);
 	});
     })
 }
@@ -359,6 +364,8 @@ exports.list_feeds = function(req, res) {
 	       res.end();
 	   }).catch(function(err) {
 	       console.log(err);
+	       res.writeHead(200, {"Content-Type": "application/json"});
+	       res.end(JSON.stringify({result: "playlist not found"}));
 	   });
 };
 
@@ -540,7 +547,7 @@ function delete_playlist_doc(playlist) {
 			console.error(`Removing playlist doc with error: ${err}`);
 			reject('error destroying playlist doc' + err);
 		    })
-	    })
+			})
 	    .catch(function(err) {
 		console.error(`Get playlist doc with error: ${err}`);
 		reject(err);
