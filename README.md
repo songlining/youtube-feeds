@@ -11,7 +11,7 @@ In short term this is my plan:
  2. OpenID support so people can create their one podcast list.
 
 ## Prerequisites
-  * CouchDB: registry of the feeds
+  * CouchDB: registry of the feeds.  You need to create a [design document](https://github.com/songlining/youtube-feeds/blob/master/cloudant/design_doc) in your database.
   * S3 API compatible Object Storage: audio files are stored here
 
 # REST API's
