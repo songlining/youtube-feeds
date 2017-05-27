@@ -5,6 +5,11 @@ You can use it to DIY your own podcast service that turns your favorite youtube 
 
 I am running my one on the [Bluemix Kubernetes](https://www.ibm.com/blogs/bluemix/2017/03/kubernetes-now-available-ibm-bluemix-container-service/) cluster.  However I can't tell you where it is until I have put in the OpenID support :)
 
+## What's next
+In short term this is my plan:
+ 1. Having a proper GUI interface - currently there is a very basic HTML interface;
+ 2. OpenID support so people can create their one podcast list.
+
 ## Prerequisites
   * CouchDB: registry of the feeds
   * S3 API compatible Object Storage: audio files are stored here
