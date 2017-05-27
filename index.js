@@ -32,14 +32,18 @@ app.set('port', process.env.PORT || 6003);
 // enable the following line in Bluemix
 // app.set('port', appEnv.port);
 
-app.set('views', path.join(__dirname + '/HTML'));
-app.use(express.static(__dirname + '/HTML'));
-app.use(bodyParser.json());
+app.set('views', path.join(__dirname + '/www'));
+app.use(express.static(__dirname + '/www'));
+
+app.set('view engine', 'pug');
 
 // Define your own router file in controller folder, export the router, add it into the index.js.
 // app.use('/', require("./controller/yourOwnRouter"));
 
-app.use('/', require("./controller/restapi/router"));
+app.use('/', require("./controller/router"));
+app.get('/', function (req, res) {
+  res.render('index', { title: 'Hey', message: 'Hello there!' })
+})
 
 http.createServer(app).listen(app.get('port'), function(req, res) {
     console.log(app.get('appName')+' is listening on port: ' + app.get('port'));
