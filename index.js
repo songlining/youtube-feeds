@@ -1,6 +1,4 @@
 /**
- * Copyright 2015 IBM Corp. All Rights Reserved.
- *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -13,9 +11,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/*
- * Zero to Cognitive Chapter 5
- */
+
 var express = require('express');
 var http = require('http');
 var path = require('path');
@@ -26,11 +22,16 @@ var app = express();
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
-app.set('appName', 'yt-rss');
+app.set('appName', 'youtube-feeds');
 // disable the following line in Bluemix. App will start on port 6003 in Bluemix
 app.set('port', process.env.PORT || 6003);
 // enable the following line in Bluemix
 // app.set('port', appEnv.port);
+
+// prepare server
+app.use('/js', express.static(__dirname + '/node_modules/bootstrap/dist/js')); // redirect bootstrap JS
+app.use('/js', express.static(__dirname + '/node_modules/jquery/dist')); // redirect JS jQuery
+app.use('/css', express.static(__dirname + '/node_modules/bootstrap/dist/css')); // redirect CSS bootstrap
 
 app.set('views', path.join(__dirname + '/www'));
 app.use(express.static(__dirname + '/www'));
@@ -41,9 +42,6 @@ app.set('view engine', 'pug');
 // app.use('/', require("./controller/yourOwnRouter"));
 
 app.use('/', require("./controller/router"));
-app.get('/', function (req, res) {
-  res.render('index', { title: 'Hey', message: 'Hello there!' })
-})
 
 http.createServer(app).listen(app.get('port'), function(req, res) {
     console.log(app.get('appName')+' is listening on port: ' + app.get('port'));

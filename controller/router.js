@@ -15,14 +15,16 @@
  */
 var express = require('express');
 var router = express.Router();
-var playlist = require('./restapi/features/playlist');
+var restapi = require('./restapi/index');
+// var frontend = require('./frontend/index');
 
 module.exports = router;
 
-// router.get('/api/playlist/*', playlist.show_episodes);
-router.get('/api/playlist/*', playlist.add_playlist);
-router.delete('/api/playlist/*', playlist.remove_playlist);
-router.get('/api/feed/*', playlist.playlist_feed);
-router.post('/api/url', playlist.process_url);
-router.get('/index.html', playlist.list_feeds);
-router.get('/', playlist.list_feeds);
+router.get('/api/playlist/*', restapi.add_playlist);
+router.delete('/api/playlist/*', restapi.remove_playlist);
+router.get('/api/feed/*', restapi.playlist_feed);
+router.post('/api/url', restapi.process_url);
+router.get('/index.html', restapi.list_feeds);
+router.get('/api/playlists', restapi.list_feeds_json);
+
+// router.get('/', frontend.homepage);
