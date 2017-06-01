@@ -16,7 +16,7 @@
 var express = require('express');
 var router = express.Router();
 var restapi = require('./restapi/index');
-// var frontend = require('./frontend/index');
+var frontend = require('./frontend/index');
 
 module.exports = router;
 
@@ -27,4 +27,4 @@ router.post('/api/url', restapi.process_url);
 router.get('/index.html', restapi.list_feeds);
 router.get('/api/playlists', restapi.list_feeds_json);
 
-// router.get('/', frontend.homepage);
+router.get('/', frontend.homepage);

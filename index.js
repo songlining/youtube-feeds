@@ -33,6 +33,11 @@ app.use('/js', express.static(__dirname + '/node_modules/bootstrap/dist/js')); /
 app.use('/js', express.static(__dirname + '/node_modules/jquery/dist')); // redirect JS jQuery
 app.use('/css', express.static(__dirname + '/node_modules/bootstrap/dist/css')); // redirect CSS bootstrap
 
+app.use('/js', express.static(__dirname + '/node_modules/clipboard/dist')); 
+
+app.use('/js', express.static(__dirname + '/javascripts')); // local ones
+app.use('/css', express.static(__dirname + '/css')); // local ones
+
 app.set('views', path.join(__dirname + '/www'));
 app.use(express.static(__dirname + '/www'));
 
