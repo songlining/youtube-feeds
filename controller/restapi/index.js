@@ -217,8 +217,15 @@ exports.playlist_feed = function(req, res) {
 	res.end(body);
     }).catch(function(e) {
 	res.writeHead(200, {"Content-Type": "application/json"});
-	res.end(JSON.stringify({result: "playlist not found"}));
+	res.end(JSON.stringify({result: e}));
     });
+}
+
+function parseDateString(s) {
+    let year = s.substring(0,4);
+    let month = s.substring(4,6);
+    let day = s.substring(6);
+    return new Date(`${year}-${month}-${day}`);
 }
 
 // https://www.npmjs.com/package/feed
@@ -226,10 +233,9 @@ function playlist_to_feed(playlist) {
     return new Promise(function(resolve, reject) {
 	playlist_info('playlist:' + playlist).then(function(info) {
 	    let feed = new Feed({
-		title: info.title,
+		title: info.title
 		// id: 'http://example.com/',
 		// link: 'http://example.com/',
-		updated: new Date()
 	    });
 	    db.view("playlist",
 		    "episodes",
@@ -244,12 +250,14 @@ function playlist_to_feed(playlist) {
 		       for (let i = 0, len = r.length; i < len; i++) {
 			   let t = r[i].doc.title;
 			   let url = r[i].doc.s3_url;
+			   let d = r[i].doc.upload_date;
 			   feed.addItem({
 			       title: t,
-			       link: url
+			       link: url,
+			       date: parseDateString(d)
 			   });
 		       }
-		       resolve(feed.rss2());
+		       resolve(feed.atom1());
 		   }).catch(function(err) {
 		       reject(err);
 		       return;
