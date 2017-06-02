@@ -3,15 +3,12 @@ A Node.js application that converts youtube playlist into audio podcast feeds.
 
 You can use it to DIY your own podcast service that turns your favorite youtube list (music?) into ads-free high quality audio podcast. 
 
-Sorry iOS users, Atom - default iOS podcast format - is not supported yet.  Currently only RSS2 is supported.
-
 I am running my one on the [Bluemix Kubernetes](https://www.ibm.com/blogs/bluemix/2017/03/kubernetes-now-available-ibm-bluemix-container-service/) cluster.  However I can't tell you where it is until I have put in the OpenID support :)
 
 ## What's next
 In short term this is my plan:
  1. Having a proper GUI interface - currently there is a very basic HTML interface;
  2. OpenID support so people can create their one podcast list;
- 3. Atom support.
 
 ## Prerequisites
   * CouchDB: registry of the feeds.  You need to create a [design document](https://github.com/songlining/youtube-feeds/blob/master/cloudant/design_doc) in your database.
