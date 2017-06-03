@@ -214,7 +214,7 @@ function register_episode(playlist,
 exports.playlist_feed = function(req, res) {
     var url = req.url; // /api/feed/PLhQSOxFylseE_9B7Brn7E6ok9expnYiey
     playlist_to_feed(url.substr(url.lastIndexOf('/') + 1)).then(function(body) {
-	res.writeHead(200, {"Content-Type": "application/atom+xml"});
+	res.writeHead(200, {"Content-Type": "application/rss+xml"});
 	res.end(body);
     }).catch(function(e) {
 	res.writeHead(200, {"Content-Type": "application/json"});
