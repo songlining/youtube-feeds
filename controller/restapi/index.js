@@ -257,7 +257,7 @@ function playlist_to_feed(playlist) {
 			       date: parseDateString(d)
 			   });
 		       }
-		       resolve(feed.atom1());
+		       resolve(feed.rss2());
 		   }).catch(function(err) {
 		       reject(err);
 		       return;
