@@ -38,7 +38,8 @@ exports.add_playlist = function(req, res) {
     var playlist_id = url.substr(url.lastIndexOf('/') + 1);
     list_episodes(playlist_id, 10)
 	.then(function(r) {
-	    res.end("Upload in progress...");
+	    res.writeHead(200, {"Content-Type": "application/json"});
+	    res.end(JSON.stringify({result: 'success'}));
 	    for (var i = 0, len = r.length; i < len; i++) {
 		let url = r[i].url;
 		let title = r[i].title;

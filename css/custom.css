@@ -1,4 +1,25 @@
 .btn {
-    margin-bottom: 5px;  
+    margin-bottom: 2px;  
     border-radius: 2;
+    text-align: left;
+}
+.spinner {
+    opacity: 0;
+    display:none;
+    width: 20px;
+    height:10px;
+    -webkit-transition: opacity 0.25s, max-width 0.45s;
+    -moz-transition: opacity 0.25s, max-width 0.45s;
+    -o-transition: opacity 0.25s, max-width 0.45s;
+    transition: opacity 0.25s, max-width 0.45s;
+    /* Duration fixed since we animate additional hidden width */
+}
+.has-spinner.active {
+    cursor:progress;
+}
+.has-spinner.active .spinner {
+    display:inline-block;
+    opacity: 1;
+    max-width: 50px;
+    /* More than it will ever come, notice that this affects on animation duration */
 }
