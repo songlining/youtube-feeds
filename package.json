@@ -24,6 +24,7 @@
     "feed": "^1.0.2",
     "fs": "0.0.1-security",
     "http": "0.0.0",
+    "jquery": "^3.2.1",
     "nano": "^6.2.0",
     "nano-promises": "^1.2.0",
     "path": "^0.12.7",
