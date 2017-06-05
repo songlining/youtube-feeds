@@ -19,6 +19,12 @@ html
   body
     div.container
       div.panel
-        div.panel-heading My Youtube Feeds
-        div.panel-body Click the buttons below to copy to clipboard and then paste into your favorite podcast player
+        div.panel-heading Add your playlist
+        div.panel-body
+          div.input-group
+            input#url.form-control(type='text', placeholder='https://www.youtube.com/playlist?list=PLK4elntcUEy3e0gvdfvzASS3x1O1nJVFT')
+            div.input-group-btn
+              button#add_url.btn.btn-default
+                i.glyphicon.glyphicon-th-list
+        div.panel-body Click the buttons below to copy podcast URL to clipboard and then paste into your favorite podcast player
       div.btn-group.btn-group-lg.btn-group-vertical
