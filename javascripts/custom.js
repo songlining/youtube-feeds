@@ -21,13 +21,35 @@ $(function(){
 	    return;
 	}
 	if (url.startsWith('https://www.youtube.com/playlist?list=')) {
-	    var playlist = url.substr(url.lastIndexOf('=') + 1);
+	    let playlist = url.substr(url.lastIndexOf('=') + 1);
 	    $.ajax({url: `/api/playlist/${playlist}`, success: function(result){
-		show_playlists();
+		poll_playlist_add_status(playlist, 1, 10);
 	    }});
 	}
     });
 })
+
+function poll_playlist_add_status(playlist, counter, loops) {
+    console.log(`${counter} : ${loops}`);
+    if (counter == loops) {
+	return;
+    }
+    $.get(`/api/info/playlist/${playlist}`)
+	.always(function(result) {
+	    if (result.result == 'success') {
+		let title = result.info.title;
+		console.log(`title: ${title}`)
+		$('div.btn-group-lg').append(`
+					     <button class="btn btn-primary btn-sm has-spinner" data-clipboard-text="http://${location.host}/api/feed/${playlist}" playlist="${playlist}">
+					     ${title}
+					     <span class="spinner"><img src="/spinner.gif" width="20" height="20"></span>
+					     </button>
+					     `);
+	    } else {
+		setTimeout(poll_playlist_add_status(playlist, ++counter, loops), 5000); 
+	    }
+	});
+}
 
 function validate_url(url) {
     return url.startsWith('https://www.youtube.com/playlist?list=') ||

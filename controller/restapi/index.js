@@ -603,3 +603,16 @@ exports.list_feeds_json = function(req, res) {
 	       res.end(JSON.stringify({result: "playlist not found"}));
 	   });
 };
+
+exports.playlist_info = function(req, res) {
+    let url = req.url; // /api/info/playlist/PLhQSOxFylseE_9B7Brn7E6ok9expnYiey
+    let playlist = 'playlist:' + url.substr(url.lastIndexOf('/') + 1);
+    db.get(playlist).then(function(r) {
+	let title = r[0].info.title;
+	res.writeHead(200, {"Content-Type": "application/json"});
+	res.end(JSON.stringify({result: 'success', info: {title: title}}));
+    }).catch(function(e) {
+	res.writeHead(200, {"Content-Type": "application/json"});
+	res.end(JSON.stringify({result: 'error', error: "error retrieving playlist info"}));
+    });
+}
