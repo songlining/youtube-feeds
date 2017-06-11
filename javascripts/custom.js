@@ -2,7 +2,7 @@
 $(function(){
     new Clipboard('.btn');
     show_playlists();
-    $(document).on("click", ".btn-primary", function (event) {
+    $(document).on("click", ".playlist", function (event) {
         let elem = $(event.currentTarget);
         elem.addClass('active');
 	let playlist = elem.attr('playlist');
@@ -58,17 +58,26 @@ function validate_url(url) {
 }
 
 function show_playlists() {
-    $('div.btn-group-lg').empty();
+    // $('div.btn-group-lg').empty();
     $.get('/api/playlists', function (data, status) {
 	let playlists = data.playlists;
 	for (let i = 0, len = playlists.length; i < len; i++) {
 	    let id = playlists[i].id;
 	    let title = playlists[i].title;
-	    $('div.btn-group-lg').append(`
-<button class="btn btn-primary btn-sm has-spinner" data-clipboard-text="http://${location.host}/api/feed/${id}" playlist="${id}">
-  ${title}
-  <span class="spinner"><img src="/spinner.gif" width="20" height="20"></span>
-</button>
+	    $('table#playlists').append(`
+<tr id="${id}">
+  <td>
+    <button style="width:100%" class="btn btn-primary btn-sm has-spinner playlist" data-clipboard-text="http://${location.host}/api/feed/${id}" playlist="${id}">
+      ${title}
+      <span class="spinner"><img src="/spinner.gif" width="20" height="20"></span>
+    </button>
+  </td>
+  <td>
+    <button style="width:100%" class="btn btn-sm delete" playlist="${id}">
+      <span><img src="/delete.png" width="15" height="15"></span>
+    </button>
+  </td>
+</tr>
 				      `);
 	}
     });
