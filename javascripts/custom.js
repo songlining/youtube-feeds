@@ -17,7 +17,8 @@ $(function(){
 	    alert(`URL format must be either: 
   https://www.youtube.com/playlist?list=... or 
   https://www.youtube.com/user/... or 
-  https://www.youtube.com/channel/...`);
+  https://www.youtube.com/channel/...
+		 `);
 	    return;
 	}
 	if (url.startsWith('https://www.youtube.com/playlist?list=')) {
@@ -26,6 +27,14 @@ $(function(){
 		poll_playlist_add_status(playlist, 1, 10);
 	    }});
 	}
+    });
+    $(document).on("click", ".delete", function (event) {
+        let elem = $(event.currentTarget);
+	let playlist = elem.attr('playlist');
+	$.ajax({url: `/api/playlist/${playlist}`, type: "DELETE", success: function(result){
+	    console.log("DELETE done, removing the element.");
+            $(`tr#${playlist}`).remove();
+	}});
     });
 })
 
