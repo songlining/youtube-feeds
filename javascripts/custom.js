@@ -48,12 +48,7 @@ function poll_playlist_add_status(playlist, counter, loops) {
 	    if (result.result == 'success') {
 		let title = result.info.title;
 		console.log(`title: ${title}`)
-		$('div.btn-group-lg').append(`
-					     <button class="btn btn-primary btn-sm has-spinner" data-clipboard-text="http://${location.host}/api/feed/${playlist}" playlist="${playlist}">
-					     ${title}
-					     <span class="spinner"><img src="/spinner.gif" width="20" height="20"></span>
-					     </button>
-					     `);
+		add_playlist(playlist, title);
 	    } else {
 		setTimeout(poll_playlist_add_status(playlist, ++counter, loops), 5000); 
 	    }
@@ -73,7 +68,14 @@ function show_playlists() {
 	for (let i = 0, len = playlists.length; i < len; i++) {
 	    let id = playlists[i].id;
 	    let title = playlists[i].title;
-	    $('table#playlists').append(`
+	    add_playlist(id, title);
+	}
+    });
+}
+
+function add_playlist(id, title) {
+    if (!$(`tr#${id}`).length) {
+	$('table#playlists').append(`
 <tr id="${id}">
   <td>
     <button style="width:100%" class="btn btn-primary btn-sm has-spinner playlist" data-clipboard-text="http://${location.host}/api/feed/${id}" playlist="${id}">
@@ -87,7 +89,8 @@ function show_playlists() {
     </button>
   </td>
 </tr>
-				      `);
-	}
-    });
+				    `);
+    } else {
+	console.log(`playlist ${id} already exists in the list`)
+    }
 }
