@@ -381,8 +381,13 @@ exports.list_feeds = function(req, res) {
 // curl --data "url=https://www.youtube.com/channel/UC9nnWZ9kRiNZ6d5UwF-sNKQ" http://localhost:6003/api/url
 exports.process_url = function(req, res) {
     let url = req.body.url;
+    url = 'https://' + url.match(/https?:\/\/([^\s]+)/)[1];
+    // http won't work, has to convert to https
+    console.log("Converted to https: " + url); 
     if (url.startsWith('https://www.youtube.com/user/') || 
-	url.startsWith('https://www.youtube.com/channel/')) {
+        url.startsWith('http://www.youtube.com/user/') || 
+        url.startsWith('https://www.youtube.com/channel/') || 
+	url.startsWith('http://www.youtube.com/channel/')) {
 	let read_buffer = '';
 	let cmd = spawn(yt_cmd, 
 			[url,
@@ -405,6 +410,7 @@ exports.process_url = function(req, res) {
 	    }
 	    let playlist_url = j.webpage_url;
 	    var playlist_id = playlist_url.substr(playlist_url.lastIndexOf('=') + 1);
+	    console.log(`channel playlist: ${playlist_id}`);
 	    res.writeHead(200, {"Content-Type": "application/json"});
 	    res.end(JSON.stringify({playlist_id: playlist_id}));
 	});

@@ -15,17 +15,33 @@ $(function(){
 	let url = $('#url').val();
 	if (!validate_url(url)) {
 	    alert(`URL format must be either: 
-  https://www.youtube.com/playlist?list=... or 
-  https://www.youtube.com/user/... or 
-  https://www.youtube.com/channel/...
+  http(s)://www.youtube.com/playlist?list=... or 
+  http(s)://www.youtube.com/user/... or 
+  http(s)://www.youtube.com/channel/...
 		 `);
 	    return;
 	}
-	if (url.startsWith('https://www.youtube.com/playlist?list=')) {
+	url = url.match(/(https?:[^\s]+)/)[1];
+	if (url.startsWith('https://www.youtube.com/playlist?list=') ||
+	    url.startsWith('http://www.youtube.com/playlist?list=')) {
 	    let playlist = url.substr(url.lastIndexOf('=') + 1);
 	    $.ajax({url: `/api/playlist/${playlist}`, success: function(result){
 		poll_playlist_add_status(playlist, 1, 10);
 	    }});
+	} else if (url.startsWith('https://www.youtube.com/channel/') ||
+		   url.startsWith('http://www.youtube.com/channel/') ||
+		   url.startsWith('https://www.youtube.com/user/') ||
+		   url.startsWith('http://www.youtube.com/user/')) {
+	    $.ajax({url: '/api/url', 
+		    data: 'url=' + url,
+		    type: "POST", 
+		    success: function(result){
+			let playlist = result.playlist_id;
+			console.log(`channel playlist: ${playlist}`);
+			$.ajax({url: `/api/playlist/${playlist}`, success: function(result){
+			    poll_playlist_add_status(playlist, 1, 10);
+			}});
+		    }});
 	}
     });
     $(document).on("click", ".delete", function (event) {
@@ -57,8 +73,11 @@ function poll_playlist_add_status(playlist, counter, loops) {
 
 function validate_url(url) {
     return url.startsWith('https://www.youtube.com/playlist?list=') ||
+           url.startsWith('http://www.youtube.com/playlist?list=') ||
            url.startsWith('https://www.youtube.com/channel/') ||
-           url.startsWith('https://www.youtube.com/user/') ;
+           url.startsWith('http://www.youtube.com/channel/') ||
+           url.startsWith('https://www.youtube.com/user/') ||
+           url.startsWith('http://www.youtube.com/user/') ;
 }
 
 function show_playlists() {
