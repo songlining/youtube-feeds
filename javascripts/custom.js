@@ -13,7 +13,7 @@ $(function(){
     });
     $(document).on("click", "#add_url.btn", function (event) {
 	let url = $('#url').val();
-	if (!validate_url(url)) {
+	if (!url.match(/https?:\/\/www.youtube.com\/(playlist|channel|user)/)) {
 	    alert(`URL format must be either: 
   http(s)://www.youtube.com/playlist?list=... or 
   http(s)://www.youtube.com/user/... or 
@@ -69,15 +69,6 @@ function poll_playlist_add_status(playlist, counter, loops) {
 		setTimeout(poll_playlist_add_status(playlist, ++counter, loops), 5000); 
 	    }
 	});
-}
-
-function validate_url(url) {
-    return url.startsWith('https://www.youtube.com/playlist?list=') ||
-           url.startsWith('http://www.youtube.com/playlist?list=') ||
-           url.startsWith('https://www.youtube.com/channel/') ||
-           url.startsWith('http://www.youtube.com/channel/') ||
-           url.startsWith('https://www.youtube.com/user/') ||
-           url.startsWith('http://www.youtube.com/user/') ;
 }
 
 function show_playlists() {

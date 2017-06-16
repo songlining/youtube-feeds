@@ -25,7 +25,7 @@ router.delete('/api/playlist/*', restapi.remove_playlist);
 router.get('/api/feed/*', restapi.playlist_feed);
 router.get('/api/info/playlist/*', restapi.playlist_info);
 router.post('/api/url', restapi.process_url);
-router.get('/index.html', restapi.list_feeds);
+// router.get('/index.html', restapi.list_feeds);
 router.get('/api/playlists', restapi.list_feeds_json);
 
 router.get('/', frontend.homepage);
