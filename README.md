@@ -87,4 +87,4 @@ If you use the Lite/free IBM K8S cluster you will be able to run your containers
 [A sample env.json file](https://github.com/songlining/youtube-feeds/blob/master/controller/env.json) has been provided for your reference.  You need to populate this file with your own credentials.
 
 # Limitation
-I am still working on the reason why podcast players on Apple devices can't play the podcasts.  My favorite podcast player is Podcast Addict which works like chime.
+I am still working on the reason why podcast players on Apple devices can't play the podcasts.  My favorite podcast player is Podcast Addict which works like charm.
