@@ -7,7 +7,7 @@ I am running my one on the [Bluemix Kubernetes](https://www.ibm.com/blogs/bluemi
 
 ## What's next
 In short term this is my plan:
- 1. Having a proper GUI interface - currently there is a very basic HTML interface;
+ 1. ~~Having a proper GUI interface - currently there is a very basic HTML interface;~~ << this has been done.
  2. OpenID support so people can create their one podcast list;
 
 ## Prerequisites
@@ -85,3 +85,6 @@ If you use the Lite/free IBM K8S cluster you will be able to run your containers
 
 ## env.json
 [A sample env.json file](https://github.com/songlining/youtube-feeds/blob/master/controller/env.json) has been provided for your reference.  You need to populate this file with your own credentials.
+
+# Limitation
+I am still working on the reason why podcast players on Apple devices can't play the podcasts.  My favorite podcast player is Podcast Addict which works like charm.
