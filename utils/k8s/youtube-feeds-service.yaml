@@ -7,7 +7,6 @@ metadata:
   name: youtube-feeds
   namespace: default
 spec:
-  clusterIP: 10.10.10.213
   ports:
   - name: tcp-6003-6003-lstoe
     nodePort: 30000
