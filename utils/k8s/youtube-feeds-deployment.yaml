@@ -20,5 +20,5 @@ spec:
       name: youtube-feeds
     spec:
       containers:
-      - image: songlining/youtube-feeds:latest
+      - image: registry.ng.bluemix.net/youtube-feeds/youtube-feeds:latest
         name: youtube-feeds
