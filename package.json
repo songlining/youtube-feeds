@@ -34,7 +34,7 @@
     "rss": "^1.2.2",
     "s3": "^4.4.0",
     "streaming-s3": "^0.4.1",
-    "ytdl-core": "^0.20.1"
+    "ytdl-core": "^0.29.2"
   },
   "devDependencies": {
     "dotenv": "^8.0.0",
