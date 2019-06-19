@@ -12,11 +12,31 @@
  * limitations under the License.
  */
 
+
 var express = require('express');
 var http = require('http');
 var path = require('path');
 var fs = require('fs');
 var bodyParser = require('body-parser');
+
+const dotenv = require('dotenv');
+dotenv.config();
+
+var options = {
+    apiVersion: 'v1', // default
+    endpoint: process.env.VAULT_ADDR,
+    token: process.env.VAULT_ROOT_TOKEN
+};
+
+// get new instance of the client
+vault = require("node-vault")(options);
+// init vault server
+vault.read(process.env.VAULT_S3_CRED)
+    .then( (result) => {
+        process.env['S3_ACCESS_KEY'] = result.data.access_key;
+        process.env['S3_SECRET_KEY'] = result.data.secret_key;
+    })
+    .catch(console.error);
 
 var app = express();
 

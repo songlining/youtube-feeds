@@ -21,16 +21,14 @@ var stream = require('stream');
 const Feed = require('feed');
 var s3 = require('s3');
 
-var config = require('../env.json');
-var accessKeyId = config.object_storage.accessKeyId;
-var secretAccessKey = config.object_storage.secretAccessKey;
-var endpoint=config.object_storage.endpoint;
-var bucket_url =config.object_storage.bucket_url;
-var db_url = config.couchdb.db_url;
-
-var prom = require('nano-promises');
-var nano = require('nano')(db_url);
-var db = prom(nano).db.use('yt_rss');
+vault.read("kv/couchdb")
+    .then( (result) => {
+        var couchdb_url = result.data.url;
+        var prom = require('nano-promises');
+        var nano = require('nano')(couchdb_url);
+        db = prom(nano).db.use('yt_rss');
+    })
+    .catch(console.error);
 
 // add one playlist and download the episodes
 exports.add_playlist = function(req, res) {
@@ -48,7 +46,7 @@ exports.add_playlist = function(req, res) {
 		// episode_id will be used as _id and it can not start with underscore in CouchDB
 		let episode_id = 'episode:' + url.substr(url.lastIndexOf('/') + 1);
 		let episode_file_name = url.substr(url.lastIndexOf('/') + 1) + '.m4a';
-		let episode_s3_url = bucket_url + episode_file_name;
+		let episode_s3_url = process.env.S3_BUCKET_URL + episode_file_name;
 		check_file(episode_file_name).then(function() {
 		    console.log("File already existing in Object Storage, no need to upload.");
 		}).catch(function() {
@@ -120,96 +118,97 @@ function list_episodes(playlist, n) {
 // download a single episode and return the S3 url
 function fetch_episode(url) {
     return new Promise(function(resolve, reject) {
-	var passthrough = new stream.PassThrough()
-	    .on('error', (err) => {
-		console.log('passThrough-error')
-	    })
-	    .on('end', () => {
-		console.log('passThrough-end')
-	    })
-	    .on('close', () => console.log('passThrough-close'))
-	    .on('unpipe', () => console.log('passThrough-unpipe'))
-	    .on('finish', () => console.log('passThrough-finish'));
-	ytdl(url, {filter: 'audioonly'})
-	    .pipe(passthrough);
-	var uploader = new streamingS3(passthrough,
-				       {
-					   accessKeyId: accessKeyId,
-					   secretAccessKey: secretAccessKey,
-					   region: "us-standard",
-					   endpoint: endpoint,
-					   sslEnabled: true
-				       },
-				       {
-					   Bucket: 'yt-rss',
-					   Key: url.substr(url.lastIndexOf('/') + 1) + '.m4a',
-					   ACL: 'public-read',
-					   ContentType: 'audio/mp4a'
-				       }
-				      );
-
-	uploader.begin();
-	uploader.on('data', function (bytesRead) {
-	    process.stdout.write('.');
-	});
-	uploader.on('part', function (number) {
-	    console.log('Part ', number, ' uploaded.');
-	});
-	// All parts uploaded, but upload not yet acknowledged.
-	uploader.on('uploaded', function (stats) {
-	    console.log('Upload stats: ', stats);
-	});
-	uploader.on('finished', function (resp, stats) {
-	    // resp.Location => s3 file url
-	    resolve(resp.Location);
-	});
-	uploader.on('error', function (e) {
-	    console.log('Upload error: ', e);
-	    uploader.end();
-	    reject(e);
-	    return;
-	});
+	      var passthrough = new stream.PassThrough()
+	          .on('error', (err) => {
+		            console.log('passThrough-error')
+	          })
+	          .on('end', () => {
+		            console.log('passThrough-end')
+	          })
+	          .on('close', () => console.log('passThrough-close'))
+	          .on('unpipe', () => console.log('passThrough-unpipe'))
+	          .on('finish', () => console.log('passThrough-finish'));
+	      ytdl(url, {filter: 'audioonly'})
+	          .pipe(passthrough);
+	      var uploader = new streamingS3(passthrough,
+				                               {
+					                                 accessKeyId: process.env.S3_ACCESS_KEY,
+					                                 secretAccessKey: process.env.S3_SECRET_KEY,
+					                                 region: process.env.S3_REGION,
+					                                 endpoint: process.env.S3_ENDPOINT,
+					                                 sslEnabled: true
+				                               },
+				                               {
+					                                 Bucket: 'yt-rss',
+					                                 Key: url.substr(url.lastIndexOf('/') + 1) + '.m4a',
+					                                 ACL: 'public-read',
+					                                 ContentType: 'audio/mp4a'
+				                               });
+	      uploader.begin();
+	      uploader.on('data', function (bytesRead) {
+	          process.stdout.write('.');
+	      });
+	      uploader.on('part', function (number) {
+	          console.log('Part ', number, ' uploaded.');
+	      });
+	      // All parts uploaded, but upload not yet acknowledged.
+	      uploader.on('uploaded', function (stats) {
+	          console.log('Upload stats: ', stats);
+	      });
+	      uploader.on('finished', function (resp, stats) {
+	          // resp.Location => s3 file url
+	          resolve(resp.Location);
+	      });
+	      uploader.on('error', function (e) {
+	          console.log('Upload error: ', e);
+	          uploader.end();
+	          reject(e);
+	          return;
+	      });
     })
 }
 
 // register the episode in CouchDB
 function register_episode(playlist,
-			  episode_id,
-			  s3_url,
-			  title,
-			  upload_date,
-			  playlist_title) {
+			                    episode_id,
+			                    s3_url,
+			                    title,
+			                    upload_date,
+			                    playlist_title) {
+    // Test only
+    // console.log(`S3 Access Key: ${process.env.S3_ACCESS_KEY}`);
+
     var doc = {playlist: [playlist],
-	       episode_id: episode_id,
-	       s3_url: s3_url,
-	       title: title,
-	       upload_date: upload_date,
-	       playlist_title: playlist_title,
-	       type: 'episode' // the other type is 'playlist'
-	      };
+	             episode_id: episode_id,
+	             s3_url: s3_url,
+	             title: title,
+	             upload_date: upload_date,
+	             playlist_title: playlist_title,
+	             type: 'episode' // the other type is 'playlist'
+	            };
     console.log(" Before nano insert, doc: " + JSON.stringify(doc));
     db.insert(doc, episode_id)
-	.then(function([body, headers]) {
-	    console.log("Episode " + episode_id + " registered.")
-	})
-	.catch(function(err) {
-	    if (err.statusCode == 409 && err.error == 'conflict') {
-		console.log(`Warning: Episode ${title}: ${episode_id} already in registry.`);
-		db.get(episode_id).then(function(r) {
-		    let e = r[0];
-		    let rev = e._rev;
-		    if (e.playlist.indexOf(playlist) == -1) {
-			// the new playlist is not in the existing episode's playlists
-			console.log("Adding playlist " + playlist + " to episode " + episode_id);
-			e.playlist.push(playlist);
-			// update back to registry
-			db.insert(e).catch(function(err) {
-			    console.log("Insert error: " + err);
-			});
-		    }
-		});
-	    }
-	});
+	      .then(function([body, headers]) {
+	          console.log("Episode " + episode_id + " registered.")
+	      })
+	      .catch(function(err) {
+	          if (err.statusCode == 409 && err.error == 'conflict') {
+		            console.log(`Warning: Episode ${title}: ${episode_id} already in registry.`);
+		            db.get(episode_id).then(function(r) {
+		                let e = r[0];
+		                let rev = e._rev;
+		                if (e.playlist.indexOf(playlist) == -1) {
+			                  // the new playlist is not in the existing episode's playlists
+			                  console.log("Adding playlist " + playlist + " to episode " + episode_id);
+			                  e.playlist.push(playlist);
+			                  // update back to registry
+			                  db.insert(e).catch(function(err) {
+			                      console.log("Insert error: " + err);
+			                  });
+		                }
+		            });
+	          }
+	      });
 }
 
 exports.playlist_feed = function(req, res) {
@@ -311,13 +310,13 @@ function check_file(file) {
 	    multipartUploadThreshold: 20971520, // this is the default (20 MB)
 	    multipartUploadSize: 15728640, // this is the default (15 MB)
 	    s3Options: {
-		accessKeyId: accessKeyId,
-		secretAccessKey: secretAccessKey,
-		region: "us-standard",
-		endpoint: endpoint,
-		sslEnabled: true
-		// any other options are passed to new AWS.S3()
-		// See: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Config.html#constructor-property
+					accessKeyId: process.env.S3_ACCESS_KEY,
+					secretAccessKey: process.env.S3_SECRET_KEY,
+					region: process.env.S3_REGION,
+					endpoint: process.env.S3_ENDPOINT,
+					sslEnabled: true
+		      // any other options are passed to new AWS.S3()
+		      // See: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Config.html#constructor-property
 	    }
 	});
 
@@ -436,11 +435,11 @@ function s3_delete_files(files) {
 	    multipartUploadThreshold: 20971520, // this is the default (20 MB)
 	    multipartUploadSize: 15728640, // this is the default (15 MB)
 	    s3Options: {
-		accessKeyId: accessKeyId,
-		secretAccessKey: secretAccessKey,
-		region: "us-standard",
-		endpoint: endpoint,
-		sslEnabled: true
+					accessKeyId: process.env.S3_ACCESS_KEY,
+					secretAccessKey: process.env.S3_SECRET_KEY,
+					region: process.env.S3_REGION,
+					endpoint: process.env.S3_ENDPOINT,
+					sslEnabled: true
 	    }
 	});
 

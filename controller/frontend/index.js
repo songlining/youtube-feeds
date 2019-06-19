@@ -12,13 +12,6 @@
  * limitations under the License.
  */
 
-var config = require('../env.json');
-var db_url = config.couchdb.db_url;
-
-var prom = require('nano-promises');
-var nano = require('nano')(db_url);
-var db = prom(nano).db.use('yt_rss');
-
 exports.homepage = function(req, res) {
     res.render('index', {});
 }
