@@ -1,0 +1,26 @@
+# Snyk (https://snyk.io) policy file, patches or ignores known vulnerabilities.
+version: v1.13.5
+ignore: {}
+# patches apply the minimum changes required to fix a vulnerability
+patch:
+  'npm:extend:20180424':
+    - request > extend:
+        patched: '2019-07-23T00:06:27.576Z'
+    - streaming-s3 > request > extend:
+        patched: '2019-07-23T00:06:27.576Z'
+    - nano > request > extend:
+        patched: '2019-07-23T00:06:27.576Z'
+    - nano > cloudant-follow > request > extend:
+        patched: '2019-07-23T00:06:27.576Z'
+  'npm:mime:20170907':
+    - s3 > mime:
+        patched: '2019-07-23T00:06:27.576Z'
+  'npm:stringstream:20180511':
+    - request > stringstream:
+        patched: '2019-07-23T00:06:27.576Z'
+    - streaming-s3 > request > stringstream:
+        patched: '2019-07-23T00:06:27.576Z'
+    - nano > request > stringstream:
+        patched: '2019-07-23T00:06:27.576Z'
+    - nano > cloudant-follow > request > stringstream:
+        patched: '2019-07-23T00:06:27.576Z'
