@@ -17,22 +17,23 @@
   "license": "Apache-2.0",
   "dependencies": {
     "body-parser": "^1.17.1",
-    "bootstrap": "^3.3.7",
+    "bootstrap": "^3.4.1",
     "clipboard": "^1.7.1",
     "cookie-parser": "^1.4.1",
     "express": "^4.16.3",
     "feed": "^1.0.2",
     "fs": "0.0.1-security",
     "http": "0.0.0",
-    "jquery": "^3.2.1",
+    "jquery": "^3.4.1",
     "nano": "^6.2.0",
     "nano-promises": "^1.2.0",
+    "natives": "^1.1.6",
     "path": "^0.12.7",
     "pug": "^2.0.0-rc.1",
     "request": "^2.72.0",
     "rss": "^1.2.2",
     "s3": "^4.4.0",
     "streaming-s3": "^0.4.1",
-    "ytdl-core": "^0.20.1"
+    "ytdl-core": "^1.0.7"
   }
 }

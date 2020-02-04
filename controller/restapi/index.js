@@ -53,7 +53,7 @@ exports.add_playlist = function(req, res) {
 		    console.log("File already existing in Object Storage, no need to upload.");
 		}).catch(function() {
 		    // it's a new file, go download and upload to Object Storage
-		    console.log("File not in ICOS, go fetching and uploading...");
+		    console.log("File not in S3, go fetching and uploading...");
 		    fetch_episode(url).catch(function(e) {
 			console.log(e);
 		    });
@@ -304,23 +304,23 @@ function playlist_info(playlist) {
 
 function check_file(file) {	
     return new Promise(function(resolve, reject) {
-	var client = s3.createClient({
-	    maxAsyncS3: 20, // this is the default
-	    s3RetryCount: 3, // this is the default
-	    s3RetryDelay: 1000, // this is the default
-	    multipartUploadThreshold: 20971520, // this is the default (20 MB)
-	    multipartUploadSize: 15728640, // this is the default (15 MB)
-	    s3Options: {
-		accessKeyId: accessKeyId,
-		secretAccessKey: secretAccessKey,
-		region: "us-standard",
-		endpoint: endpoint,
-		sslEnabled: true
-		// any other options are passed to new AWS.S3()
-		// See: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Config.html#constructor-property
-	    }
+	      var client = s3.createClient({
+	          maxAsyncS3: 20, // this is the default
+	          s3RetryCount: 3, // this is the default
+	          s3RetryDelay: 1000, // this is the default
+	          multipartUploadThreshold: 20971520, // this is the default (20 MB)
+	          multipartUploadSize: 15728640, // this is the default (15 MB)
+	          s3Options: {
+		            accessKeyId: accessKeyId,
+		            secretAccessKey: secretAccessKey,
+		            region: "us-standard",
+		            endpoint: endpoint,
+		            sslEnabled: true
+		            // any other options are passed to new AWS.S3()
+		            // See: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Config.html#constructor-property
+	          }
 	});
-
+        
 	client.s3.headObject({
 	    Bucket: 'yt-rss',
 	    Key: file
