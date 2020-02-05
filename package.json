@@ -16,6 +16,7 @@
   "author": "Larry Song",
   "license": "Apache-2.0",
   "dependencies": {
+    "appdynamics": "^4.5.16",
     "body-parser": "^1.17.1",
     "bootstrap": "^3.4.1",
     "clipboard": "^1.7.1",

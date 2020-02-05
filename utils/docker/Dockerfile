@@ -8,7 +8,7 @@ RUN ln -s /usr/bin/youtube-dl /usr/local/bin/youtube-dl
 
 RUN mkdir -p /usr/src/app
 WORKDIR /usr/src/app/
-RUN git clone https://github.com/songlining/youtube-feeds.git
+RUN git clone --branch perf-test https://github.com/songlining/youtube-feeds.git
 RUN apk del git
 WORKDIR /usr/src/app/youtube-feeds
 RUN npm install
