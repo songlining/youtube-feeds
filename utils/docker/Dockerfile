@@ -1,4 +1,4 @@
-FROM mhart/alpine-node:6
+FROM mhart/alpine-node:11
 
 RUN apk update && apk upgrade && \
     apk add --no-cache git py-pip ca-certificates
