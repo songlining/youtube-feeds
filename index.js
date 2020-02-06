@@ -12,6 +12,31 @@
  * limitations under the License.
  */
 
+var config = require('./controller/env.json');
+require("appdynamics").profile({
+    controllerHostName: config.AppD.controllerHostName,
+    controllerPort: 443,
+    
+    // If SSL, be sure to enable the next line
+    controllerSslEnabled: true,
+    accountName: config.AppD.accountName,
+    accountAccessKey: config.AppD.accountAccessKey,
+    applicationName: config.AppD.applicationName,
+    tierName: config.AppD.tierName,
+    nodeName: config.AppD.nodeName, // The controller will automatically append the node name with a unique number
+    logging: {
+        'logfiles': [
+            {
+                'root_directory': '/tmp/appd',
+		            'filename': 'echo_%N.log',
+                'level': 'INFO',
+                'max_size': 5242880,
+                'max_files': 10,
+                'outputType': 'console'  // Set this parameter if you want to log to STDOUT/STDERR. Omit this parameter if you want to log to a file.
+            }
+        ]
+    }
+});
 var express = require('express');
 var http = require('http');
 var path = require('path');
@@ -19,7 +44,6 @@ var fs = require('fs');
 var bodyParser = require('body-parser');
 
 var app = express();
-var config = require('./controller/env.json');
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
@@ -51,27 +75,3 @@ http.createServer(app).listen(app.get('port'), function(req, res) {
     console.log(app.get('appName')+' is listening on port: ' + app.get('port'));
 });
 
-require("appdynamics").profile({
-    controllerHostName: config.AppD.controllerHostName,
-    controllerPort: 443,
-    
-    // If SSL, be sure to enable the next line
-    controllerSslEnabled: true,
-    accountName: config.AppD.accountName,
-    accountAccessKey: config.AppD.accountAccessKey,
-    applicationName: config.AppD.applicationName,
-    tierName: config.AppD.tierName,
-    nodeName: 'process', // The controller will automatically append the node name with a unique number
-    logging: {
-        'logfiles': [
-            {
-                'root_directory': '/tmp/appd',
-		            'filename': 'echo_%N.log',
-                'level': 'INFO',
-                'max_size': 5242880,
-                'max_files': 10,
-                'outputType': 'console'  // Set this parameter if you want to log to STDOUT/STDERR. Omit this parameter if you want to log to a file.
-            }
-        ]
-    }
-});
