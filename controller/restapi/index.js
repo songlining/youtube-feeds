@@ -20,206 +20,201 @@ var streamingS3 = require('streaming-s3');
 var stream = require('stream');
 const Feed = require('feed');
 var s3 = require('s3');
+var r=require("request");
 
 var config = require('../env.json');
 var accessKeyId = config.object_storage.accessKeyId;
 var secretAccessKey = config.object_storage.secretAccessKey;
 var endpoint=config.object_storage.endpoint;
 var bucket_url =config.object_storage.bucket_url;
-var db_url = config.couchdb.db_url;
+var neo4j_url = config.neo4j.url;
+var neo4j_username = config.neo4j.username;
+var neo4j_password = config.neo4j.password;
 
-var prom = require('nano-promises');
-var nano = require('nano')(db_url);
-var db = prom(nano).db.use('yt_rss');
+// for future user features
+var current_user_id = "0";
+var current_user_name = "larry";
 
+// neo4j cypher REST call
+function cypher(query,params,cb) {
+    r.post({uri:neo4j_url,
+            auth: {"username": neo4j_username, "password": neo4j_password},
+            json:{statements:[{statement:query, parameters:params}]}},
+           function(err,res) { cb(err,res.body)});
+}
 // add one playlist and download the episodes
 exports.add_playlist = function(req, res) {
     var url = req.url; 
     var playlist_id = url.substr(url.lastIndexOf('/') + 1);
     list_episodes(playlist_id, 10)
-	.then(function(r) {
-	    res.writeHead(200, {"Content-Type": "application/json"});
-	    res.end(JSON.stringify({result: 'success'}));
-	    for (var i = 0, len = r.length; i < len; i++) {
-		let url = r[i].url;
-		let title = r[i].title;
-		let upload_date = r[i].upload_date;
-		let playlist_title = r[i].playlist_title;
-		// episode_id will be used as _id and it can not start with underscore in CouchDB
-		let episode_id = 'episode:' + url.substr(url.lastIndexOf('/') + 1);
-		let episode_file_name = url.substr(url.lastIndexOf('/') + 1) + '.m4a';
-		let episode_s3_url = bucket_url + episode_file_name;
-		check_file(episode_file_name).then(function() {
-		    console.log("File already existing in Object Storage, no need to upload.");
-		}).catch(function() {
-		    // it's a new file, go download and upload to Object Storage
-		    console.log("File not in S3, go fetching and uploading...");
-		    fetch_episode(url).catch(function(e) {
-			console.log(e);
-		    });
-		});
-		register_episode(playlist_id, episode_id, episode_s3_url, title, upload_date, playlist_title);
-	    }
-	})
-	.catch(function (e){
-	    var r = JSON.stringify(e);
-	    console.log(r);
-	    res.send(r);
-	});
+	      .then(function(r) {
+	          res.writeHead(200, {"Content-Type": "application/json"});
+	          res.end(JSON.stringify({result: 'success'}));
+	          for (var i = 0, len = r.length; i < len; i++) {
+		            let url = r[i].url;
+		            let title = r[i].title;
+		            let upload_date = r[i].upload_date;
+		            let playlist_title = r[i].playlist_title;
+		            // episode_id will be used as _id and it can not start with underscore in CouchDB
+		            let episode_id = url.substr(url.lastIndexOf('/') + 1);
+		            let episode_file_name = url.substr(url.lastIndexOf('/') + 1) + '.m4a';
+		            let episode_s3_url = bucket_url + episode_file_name;
+		            check_file(episode_file_name).then(function() {
+		                console.log("File already existing in S3 or is being uploaded, no need to upload.");
+		            }, function() {
+		                // it's a new file, go download and upload to Object Storage
+		                console.log("File not in S3, go fetching and uploading...");
+		                register_episode(playlist_id, episode_id, episode_s3_url, title, upload_date, playlist_title);
+		                fetch_episode(url).catch(function(e) {
+			                  console.log(e);
+		                });
+                });
+	          }
+	      })
+	      .catch(function (e){
+	          var r = JSON.stringify(e);
+	          console.log(r);
+	          res.send(r);
+	      });
 }
 
 // return the last n episodes of a playlist
 function list_episodes(playlist, n) {
     return new Promise(function(resolve, reject) {
-	let read_buffer = '';
-	let cmd = spawn(yt_cmd, 
-			['https://www.youtube.com/playlist?list=' + playlist, 
-			 '-J', 
-			 '--ignore-errors', 
-			 '--playlist-end=' + n]);
-	
-	cmd.stdout.on('data', (data) => {
-	    read_buffer = read_buffer + data;
-	});
-	cmd.stderr.on('data', (data) => {
-	    console.log(`stderr: ${data}`);
-	});
-	cmd.on('close', (code) => {
-	    console.log(`child process exited with code ${code}`);
-	    try {
-		var j = JSON.parse(read_buffer);
-	    } catch(e) {
-		reject(e);
-		return;
-	    }
-	    var a = [];
-	    try {
-		var playlist_title = j.title;
-	    } catch (e) {
-		console.log("Got error, reject the promise.")
-		reject(e);
-		return;
-	    }
-	    register_playlist('playlist:' + playlist, {title: playlist_title});
-	    j.entries.forEach(function(e) {
-		// a private episode can be a null value in the array
-		// to test: 
-		// curl -X PUT http://localhost:6003/api/playlist/PLATwx1z00HsdanKZcTMQEc-n_Bhu_aZ76
-		if (e != null) {
-		    a.push({url: e.id,
-			    title: e.title,
-			    upload_date: e.upload_date,
-			    playlist_title: playlist_title});
-		}
-	    });
-	    resolve(a);
-	});
+	      let read_buffer = '';
+	      let cmd = spawn(yt_cmd, 
+			                  ['https://www.youtube.com/playlist?list=' + playlist, 
+			                   '-J', 
+			                   '--ignore-errors', 
+			                   '--playlist-end=' + n]);
+
+	      cmd.stdout.on('data', (data) => {
+	          read_buffer = read_buffer + data;
+	      });
+	      cmd.stderr.on('data', (data) => {
+	          console.log(`stderr: ${data}`);
+	      });
+	      cmd.on('close', (code) => {
+	          console.log(`child process exited with code ${code}`);
+	          try {
+		            var j = JSON.parse(read_buffer);
+	          } catch(e) {
+		            reject(e);
+		            return;
+	          }
+	          var a = [];
+	          try {
+		            var playlist_title = j.title;
+	          } catch (e) {
+		            console.log("Got error, reject the promise.")
+		            reject(e);
+		            return;
+	          }
+	          register_playlist(playlist, playlist_title);
+	          j.entries.forEach(function(e) {
+		            // a private episode can be a null value in the array
+		            // to test: 
+		            // curl -X PUT http://localhost:6003/api/playlist/PLATwx1z00HsdanKZcTMQEc-n_Bhu_aZ76
+		            if (e != null) {
+		                a.push({url: e.id,
+			                      title: e.title,
+			                      upload_date: e.upload_date,
+			                      playlist_title: playlist_title});
+		            }
+	          });
+	          resolve(a);
+	      });
     })
 }
 
 // download a single episode and return the S3 url
 function fetch_episode(url) {
+    console.log("Fetching episode, url = : ", url); // sample url: PYF8Y47qZQY
     return new Promise(function(resolve, reject) {
-	var passthrough = new stream.PassThrough()
-	    .on('error', (err) => {
-		console.log('passThrough-error')
-	    })
-	    .on('end', () => {
-		console.log('passThrough-end')
-	    })
-	    .on('close', () => console.log('passThrough-close'))
-	    .on('unpipe', () => console.log('passThrough-unpipe'))
-	    .on('finish', () => console.log('passThrough-finish'));
-	ytdl(url, {filter: 'audioonly'})
-	    .pipe(passthrough);
-	var uploader = new streamingS3(passthrough,
-				       {
-					   accessKeyId: accessKeyId,
-					   secretAccessKey: secretAccessKey,
-					   region: "us-standard",
-					   endpoint: endpoint,
-					   sslEnabled: true
-				       },
-				       {
-					   Bucket: 'yt-rss',
-					   Key: url.substr(url.lastIndexOf('/') + 1) + '.m4a',
-					   ACL: 'public-read',
-					   ContentType: 'audio/mp4a'
-				       }
-				      );
+	      var passthrough = new stream.PassThrough()
+	          .on('error', (err) => {
+		            console.log('passThrough-error')
+	          })
+	          .on('end', () => {
+		            console.log('passThrough-end')
+	          })
+	          .on('close', () => console.log('passThrough-close'))
+	          .on('unpipe', () => console.log('passThrough-unpipe'))
+	          .on('finish', () => console.log('passThrough-finish'));
+	      ytdl(url, {filter: 'audioonly'})
+	          .pipe(passthrough);
+	      var uploader = new streamingS3(passthrough,
+				                               {
+					                                 accessKeyId: accessKeyId,
+					                                 secretAccessKey: secretAccessKey,
+					                                 region: "us-standard",
+					                                 endpoint: endpoint,
+					                                 sslEnabled: true
+				                               },
+				                               {
+					                                 Bucket: 'yt-rss',
+					                                 Key: url.substr(url.lastIndexOf('/') + 1) + '.m4a',
+					                                 ACL: 'public-read',
+					                                 ContentType: 'audio/mp4a'
+				                               }
+				                              );
 
-	uploader.begin();
-	uploader.on('data', function (bytesRead) {
-	    process.stdout.write('.');
-	});
-	uploader.on('part', function (number) {
-	    console.log('Part ', number, ' uploaded.');
-	});
-	// All parts uploaded, but upload not yet acknowledged.
-	uploader.on('uploaded', function (stats) {
-	    console.log('Upload stats: ', stats);
-	});
-	uploader.on('finished', function (resp, stats) {
-	    // resp.Location => s3 file url
-	    resolve(resp.Location);
-	});
-	uploader.on('error', function (e) {
-	    console.log('Upload error: ', e);
-	    uploader.end();
-	    reject(e);
-	    return;
-	});
+	      uploader.begin();
+	      uploader.on('data', function (bytesRead) {
+	          process.stdout.write('.');
+	      });
+	      uploader.on('part', function (number) {
+	          console.log('Part ', number, ' uploaded.');
+	      });
+	      // All parts uploaded, but upload not yet acknowledged.
+	      uploader.on('uploaded', function (stats) {
+	          console.log('On signal "uploaded", stats: ', stats);
+	      });
+	      uploader.on('finished', function (resp, stats) {
+	          // resp.Location => s3 file url
+	          console.log('On signal "finished", stats: ', stats);
+	          resolve(resp.Location);
+	      });
+	      uploader.on('error', function (e) {
+	          console.log('Upload error: ', e);
+	          uploader.end();
+	          reject(e);
+	          return;
+	      });
     })
 }
 
 // register the episode in CouchDB
 function register_episode(playlist,
-			  episode_id,
-			  s3_url,
-			  title,
-			  upload_date,
-			  playlist_title) {
-    var doc = {playlist: [playlist],
-	       episode_id: episode_id,
-	       s3_url: s3_url,
-	       title: title,
-	       upload_date: upload_date,
-	       playlist_title: playlist_title,
-	       type: 'episode' // the other type is 'playlist'
-	      };
-    console.log(" Before nano insert, doc: " + JSON.stringify(doc));
-    db.insert(doc, episode_id)
-	.then(function([body, headers]) {
-	    console.log("Episode " + episode_id + " registered.")
-	})
-	.catch(function(err) {
-	    if (err.statusCode == 409 && err.error == 'conflict') {
-		console.log(`Warning: Episode ${title}: ${episode_id} already in registry.`);
-		db.get(episode_id).then(function(r) {
-		    let e = r[0];
-		    let rev = e._rev;
-		    if (e.playlist.indexOf(playlist) == -1) {
-			// the new playlist is not in the existing episode's playlists
-			console.log("Adding playlist " + playlist + " to episode " + episode_id);
-			e.playlist.push(playlist);
-			// update back to registry
-			db.insert(e).catch(function(err) {
-			    console.log("Insert error: " + err);
-			});
-		    }
-		});
-	    }
-	});
+			                    episode_id,
+			                    s3_url,
+			                    title,
+			                    upload_date,
+			                    playlist_title) {
+    query = `
+MERGE (f:Feed {id: "${playlist}", title: "${playlist_title}"})
+MERGE (f)-[:HAS]->(e:Episode {id: "${episode_id}", s3_url: "${s3_url}", title: "${title}", upload_date: ${upload_date}, playlist_title: "${playlist_title}"})
+RETURN e.id
+`;
+    params = {limit: 10};
+    console.log(`register_episode, query: ${query}`);
+    cypher(query, params, function (err, data) {
+        if (err) {
+            console.log("err: " + JSON.stringify(err));
+        } else {
+            console.log("data: " + JSON.stringify(data));
+        }
+    });
 }
 
 exports.playlist_feed = function(req, res) {
     var url = req.url; // /api/feed/PLhQSOxFylseE_9B7Brn7E6ok9expnYiey
     playlist_to_feed(url.substr(url.lastIndexOf('/') + 1)).then(function(body) {
-	res.writeHead(200, {"Content-Type": "application/rss+xml"});
-	res.end(body);
+	      res.writeHead(200, {"Content-Type": "application/rss+xml"});
+	      res.end(body);
     }).catch(function(e) {
-	res.writeHead(200, {"Content-Type": "application/json"});
-	res.end(JSON.stringify({result: e}));
+	      res.writeHead(200, {"Content-Type": "application/json"});
+	      res.end(JSON.stringify({result: e}));
     });
 }
 
@@ -233,73 +228,83 @@ function parseDateString(s) {
 // https://www.npmjs.com/package/feed
 function playlist_to_feed(playlist) {
     return new Promise(function(resolve, reject) {
-	playlist_info('playlist:' + playlist).then(function(info) {
-	    let feed = new Feed({
-		title: info.title
-		// id: 'http://example.com/',
-		// link: 'http://example.com/',
-	    });
-	    db.view("playlist",
-		    "episodes",
-		    {
-			startkey:[playlist, {}],
-			endkey:[playlist, null],
-			descending:true,
-			include_docs:true
-		    }
-		   ).then(function([body, headers]) {
-		       let r = body.rows;
-		       for (let i = 0, len = r.length; i < len; i++) {
-			   let t = r[i].doc.title;
-			   let url = r[i].doc.s3_url;
-			   let d = r[i].doc.upload_date;
-			   feed.addItem({
-			       title: t,
-			       link: url,
-			       date: parseDateString(d)
-			   });
-		       }
-		       resolve(feed.rss2());
-		   }).catch(function(err) {
-		       reject(err);
-		       return;
-		   });
-	}).catch(function(e) {
-	    reject(e);
-	});
+	      playlist_info(playlist).then(function(title) {
+	          let feed = new Feed({
+		            title: title
+		            // id: 'http://example.com/',
+		            // link: 'http://example.com/',
+	          });
+            let query = `MATCH (Feed {id: "${playlist}"})-[:HAS]->(e:Episode) RETURN e.title, e.s3_url, e.upload_date;`;
+            cypher(query, params, function (err, data) {
+                if (err) {
+                    console.log("playlist_to_feed err: " + JSON.stringify(err));
+                    reject(err);
+                } else {
+                    console.log("playlist_to_feed data: " + JSON.stringify(data));
+                    let e = data.results[0].data;
+	                  for (let i = 0, len = e.length; i < len; i++) {
+                        let t = e[i].row[0];
+                        let url = e[i].row[1];
+                        let d = e[i].row[2];
+                        feed.addItem({
+			                      title: t,
+			                      link: url,
+			                      date: parseDateString(d.toString())
+                        });
+                    }
+                    resolve(feed.rss2());
+                }
+            });
+	      }).catch(function(e) {
+	          reject(e);
+	      });
     })
 }
 
-function register_playlist(playlist, info) {
+function register_playlist(playlist, title) {
     return new Promise(function(resolve, reject) {
-	db.get(playlist).then(function(r) {
-	    console.log(playlist + " already registered.");
-	    resolve();
-	}).catch(function(e) {
-	    if (e.statusCode = 404) {
-		// playlist does not exist in registry
-		db.insert({type: "playlist", info: info}, playlist).then(function([body, headers]) {
-		    console.log(playlist + " registered");
-		    resolve();
-		}).catch(function(e) {
-		    console.log("Error registering " + playlist + ". Error: " + e);
-		    reject(e);
-		    return;
-		});
-	    }
-	});
+        query = `
+MERGE (feeds:Feeds {user_id: ${current_user_id}, user_name: "${current_user_name}"})
+MERGE (feed:Feed {id: "${playlist}", title: "${title}"})
+MERGE (feeds)-[:HAS]->(feed)
+RETURN feed.id`;
+        console.log(`register_playlist, query: ${query}`);
+        params = {limit: 10};
+        cypher(query, params, function (err, data) {
+            if (err) {
+                console.log("err: " + JSON.stringify(err));
+                reject(err);
+            } else {
+                console.log("data: " + JSON.stringify(data));
+                resolve(data);
+            }
+        });
     });
 }
 
 function playlist_info(playlist) {
     return new Promise(function(resolve, reject) {
-	db.get(playlist).then(function(r) {
-	    resolve(r[0].info)
-	}).catch(function(e) {
-	    reject(e);
-	    return;
-	});
-    })
+        query = `
+MATCH (f:Feed {id: "${playlist}"})
+RETURN f.title
+`;
+        params = {limit: 10};
+        console.log(`playlist_info, query: ${query}`);
+        cypher(query, params, function (err, data) {
+            if (err) {
+                console.log("err: " + JSON.stringify(err));
+                reject(err);
+            } else {
+                console.log("data: " + JSON.stringify(data));
+                try {
+                    let title = data.results[0].data[0].row[0];
+                    resolve(title);
+                } catch (e) {
+                    reject(e);
+                }
+            }
+        });
+    });
 }
 
 function check_file(file) {	
@@ -319,63 +324,47 @@ function check_file(file) {
 		            // any other options are passed to new AWS.S3()
 		            // See: http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/Config.html#constructor-property
 	          }
-	});
-        
-	client.s3.headObject({
-	    Bucket: 'yt-rss',
-	    Key: file
-	}, function(err, data) {
-	    if (err) {
-		// file does not exist (err.statusCode == 404)
-		reject(err);
-		return;
-	    }
-	    // file exists
-	    resolve(data);
-	});
+	      });
+
+	      client.s3.headObject({
+	          Bucket: 'yt-rss',
+	          Key: file
+	      }, function(err, data) {
+	          if (err) {
+		            // file does not exist (err.statusCode == 404)
+                let e = file.substr(0, file.lastIndexOf('.'));
+                query = `MATCH (e:Episode {id: "${e}"}) RETURN e.id`;
+                console.log(`check_file, query: ${query}`);
+                cypher(query, params, function (err, data) {
+                    if (err) {
+                        console.log("err: " + JSON.stringify(err));
+                        reject();
+                        return;
+                    } else {
+                        console.log("data: " + JSON.stringify(data));
+                        console.log("data.length: " + data.results[0].data.length);
+                        if (data.results[0].data.length == 0) {
+                            // file is not registered
+                            console.log("file not in registry");
+                            reject();
+                            return;
+                        } else {
+                            // we have registered that file already so it might have been downloaded
+                            // future improvement will be setting expiry of downloading based on timestamp
+                            console.log("file is in registry");
+                            resolve();
+                            return;
+                        }
+                    }
+                });
+	          } else {
+	              // file exists
+	              resolve();
+                return;
+            }
+	      });
     });
 }
-
-exports.list_feeds = function(req, res) {
-    db.view("playlist",
-	    "playlists",
-	    {
-		descending:true,
-		include_docs:true
-	    }
-	   ).then(function([body, headers]) {
-	       let r = body.rows;
-	       res.writeHead(200, {'Content-Type': 'text/html'});
-	       res.write(
-		   `<!DOCTYPE html>
-		       <html>
-		       <head>
-		       <meta charset="UTF-8">
-		       <title>Youtube Feeds</title>
-		       </head>
-		       <body>
-		       <table>`
-	       );
-	       for (let i = 0, len = r.length; i < len; i++) {
-		   let id = r[i].doc._id;
-		   let playlist_id = id.substr(id.lastIndexOf(':') + 1);
-		   let title = r[i].doc.info.title;
-		   res.write(
-		       `
-			   <tr>
-			   <td><a href="/api/feed/${playlist_id}">${title}</a></td>
-			   <td><a href="/api/playlist/${playlist_id}"><img border="0" alt="reload podcast" src="https://cdn0.iconfinder.com/data/icons/BrushedMetalIcons_meBaze/24/Reload-03.png" width="24" height="24"></a></td>
-			   </tr>`
-		   );
-	       }
-	       res.write(`</table></body></html>`);
-	       res.end();
-	   }).catch(function(err) {
-	       console.log(err);
-	       res.writeHead(200, {"Content-Type": "application/json"});
-	       res.end(JSON.stringify({result: "playlist not found"}));
-	   });
-};
 
 // retrieve playlist id from channel or user URLs
 // curl --data "url=https://www.youtube.com/channel/UC9nnWZ9kRiNZ6d5UwF-sNKQ" http://localhost:6003/api/url
@@ -387,185 +376,123 @@ exports.process_url = function(req, res) {
     if (url.startsWith('https://www.youtube.com/user/') || 
         url.startsWith('http://www.youtube.com/user/') || 
         url.startsWith('https://www.youtube.com/channel/') || 
-	url.startsWith('http://www.youtube.com/channel/')) {
-	let read_buffer = '';
-	let cmd = spawn(yt_cmd, 
-			[url,
-			 '-J', 
-			 '--ignore-errors', 
-			 '--playlist-end=1']);
-	
-	cmd.stdout.on('data', (data) => {
-	    read_buffer = read_buffer + data;
-	});
-	cmd.stderr.on('data', (data) => {
-	    console.log(`stderr: ${data}`);
-	});
-	cmd.on('close', (code) => {
-	    console.log(`child process exited with code ${code}`);
-	    try {
-		var j = JSON.parse(read_buffer);
-	    } catch(e) {
-		console.log(e);
-	    }
-	    let playlist_url = j.webpage_url;
-	    var playlist_id = playlist_url.substr(playlist_url.lastIndexOf('=') + 1);
-	    console.log(`channel playlist: ${playlist_id}`);
-	    res.writeHead(200, {"Content-Type": "application/json"});
-	    res.end(JSON.stringify({playlist_id: playlist_id}));
-	});
+	      url.startsWith('http://www.youtube.com/channel/')) {
+	      let read_buffer = '';
+	      let cmd = spawn(yt_cmd, 
+			                  [url,
+			                   '-J', 
+			                   '--ignore-errors', 
+			                   '--playlist-end=1']);
+
+	      cmd.stdout.on('data', (data) => {
+	          read_buffer = read_buffer + data;
+	      });
+	      cmd.stderr.on('data', (data) => {
+	          console.log(`stderr: ${data}`);
+	      });
+	      cmd.on('close', (code) => {
+	          console.log(`child process exited with code ${code}`);
+	          try {
+		            var j = JSON.parse(read_buffer);
+	          } catch(e) {
+		            console.log(e);
+	          }
+	          let playlist_url = j.webpage_url;
+	          var playlist_id = playlist_url.substr(playlist_url.lastIndexOf('=') + 1);
+	          console.log(`channel playlist: ${playlist_id}`);
+	          res.writeHead(200, {"Content-Type": "application/json"});
+	          res.end(JSON.stringify({playlist_id: playlist_id}));
+	      });
     } else {
-	res.writeHead(200, {"Content-Type": "application/json"});
-	res.end(JSON.stringify({error: "Wrong URL format"}));
+	      res.writeHead(200, {"Content-Type": "application/json"});
+	      res.end(JSON.stringify({error: "Wrong URL format"}));
     }
 }
 
 // input sample: [ {Key: 'B7bqAsxee4I.m4a'}, {Key: 'BlKWMKpSiW0.m4a'} ];
 function s3_delete_files(files) {	
     return new Promise(function(resolve, reject) {
-	console.log(`Files to be deleted from S3: ${JSON.stringify(files)}`);
-	if (files.length == 0) {
-	    console.log(`s3_delete_files: input error - empty array`);
-	    reject('input error: empty array');
-	    return;
-	}
-	var client = s3.createClient({
-	    maxAsyncS3: 20, // this is the default
-	    s3RetryCount: 3, // this is the default
-	    s3RetryDelay: 1000, // this is the default
-	    multipartUploadThreshold: 20971520, // this is the default (20 MB)
-	    multipartUploadSize: 15728640, // this is the default (15 MB)
-	    s3Options: {
-		accessKeyId: accessKeyId,
-		secretAccessKey: secretAccessKey,
-		region: "us-standard",
-		endpoint: endpoint,
-		sslEnabled: true
-	    }
-	});
+	      console.log(`Files to be deleted from S3: ${JSON.stringify(files)}`);
+	      if (files.length == 0) {
+	          console.log(`s3_delete_files: input error - empty array`);
+	          reject('input error: empty array');
+	          return;
+	      }
+	      var client = s3.createClient({
+	          maxAsyncS3: 20, // this is the default
+	          s3RetryCount: 3, // this is the default
+	          s3RetryDelay: 1000, // this is the default
+	          multipartUploadThreshold: 20971520, // this is the default (20 MB)
+	          multipartUploadSize: 15728640, // this is the default (15 MB)
+	          s3Options: {
+		            accessKeyId: accessKeyId,
+		            secretAccessKey: secretAccessKey,
+		            region: "us-standard",
+		            endpoint: endpoint,
+		            sslEnabled: true
+	          }
+	      });
 
-	let params = {
-	    Bucket: 'yt-rss',
-	    Delete: {Objects: files},
-	    Quiet: false
-	};
-	let d = client.deleteObjects(params);
-	d.on('error', function(err) {
-	    console.log(`Error while deleting S3 files: err`);
-	    reject(err);
-	});
-	d.on('end', function() {
-	    console.log(`S3 files deletion complete`);
-	    resolve('delete complete');
-	});
-	
+	      let params = {
+	          Bucket: 'yt-rss',
+	          Delete: {Objects: files},
+	          Quiet: false
+	      };
+	      let d = client.deleteObjects(params);
+	      d.on('error', function(err) {
+	          console.log(`Error while deleting S3 files: err`);
+	          reject(err);
+	      });
+	      d.on('end', function() {
+	          console.log(`S3 files deletion complete`);
+	          resolve('delete complete');
+	      });
     });
 }
 
 function remove_playlist(playlist) {
     return new Promise(function(resolve, reject) {
-	db.view("playlist",
-		"episodes",
-		{
-		    startkey:[playlist, {}],
-		    endkey:[playlist, null],
-		    descending:true,
-		    include_docs:true
-		}
-	       ).then(function([body, headers]) {
-		   let r = body.rows;
-		   if (r.length == 0) {
-		       console.log("No episodes exist under this playlist");
-		       // need to check whether the playlist doc is still there, 
-		       delete_playlist_doc(playlist)
-			   .then(function(data) {
-			       console.log(`Playlist ${playlist} has been deleted`)
-			       reject("playlist doc has been deleted");
-			   })
-			   .catch(function(e) {
-			       console.log(`Playlist ${playlist} does not exist: ${e}`)
-			       reject("playlist doc non-exist");
-			   });
-		       return;
-		   }
-		   let files_to_delete = [];
-		   for (let i = 0, len = r.length; i < len; i++) {
-		       let doc = r[i].doc;
-		       let pl = doc.playlist;
-		       let url = doc.s3_url;
-		       let id = doc._id;
-		       let rev = doc._rev;
-		       // remove the playlist from the array
-		       let index = pl.indexOf(playlist);
-		       if (index > -1) {
-			   pl.splice(index, 1);
-		       }
-		       if (pl.length == 0) {
-			   // array is empty, episode will be removed
-			   let s3_file_name = url.substr(url.lastIndexOf('/') + 1);
-			   files_to_delete.push({Key: s3_file_name});
-			   // remove the doc
-			   console.log(`removing ${doc}`);
-			   db.destroy(id, rev).catch(function(err) {
-			       console.error(err);
-			   });
-		       } else if (pl.length > 0) {
-			   // array is not empty yet, episode will be kept. doc.playlist will be updated
-			   doc.playlist = pl;
-			   db.insert(doc)
-			       .then(function(r) {
-			       	   console.log("Episode " + id + ": playlist updated.")
-			       })
-			       .catch(function(err) {
-				   console.log("Episode playlist update error: " + err)
-			       });
-		       }
-		   }
-		   // playlist doc to be removed
-		   delete_playlist_doc(playlist)
-		       .then(function(data) {
-			   console.log(`Playlist ${playlist} has been deleted`)
-		       })
-		       .catch(function(e) {
-			   console.log(`Playlist ${playlist} deletion error: ${e}`)
-		       });
-		   if (files_to_delete.length > 0) {
-		       s3_delete_files(files_to_delete)
-			   .then(function() {
-			       console.log("s3 files deleted");
-			   })
-			   .catch(function(e) {
-			       console.log("s3 file deletion error: " + e);
-			       reject('s3 file deletion error:' + e);
-			       return;
-			   });
-		   }
-		   resolve(playlist); 
-	       }).catch(function(err) {
-		   reject(err);
-		   return;
-	       });
-    })
-}
+        // list all the episodes under this feed/playlist
+        let query = `MATCH (Feed {id: "${playlist}"})-[:HAS]->(e:Episode) RETURN e.id, e.s3_url;`;
+        let params = {limit: 1000};
+        cypher(query, params, function (err, data) {
+            if (err) {
+                console.log("remove_playlist err: " + JSON.stringify(err));
+                reject();
+            } else {
+                console.log("remove_playlist list of episodes: " + JSON.stringify(data));
+                let files_to_delete = [];
+                let episodes = data.results[0].data;
+	              for (let i = 0, len = episodes.length; i < len; i++) {
+                    let s3_url = episodes[i].row[1];
+                    let s3_file_name = s3_url.substr(s3_url.lastIndexOf('/') + 1);
+                    files_to_delete.push({Key: s3_file_name});
+                }
+                console.log("remove_playlist list of s3 file names: " + JSON.stringify(files_to_delete));
+                s3_delete_files(files_to_delete).then(function() {
+			              console.log("s3 files deleted");
+			          }).catch(function(e) {
+			              console.log("s3 file deletion error: " + e);
+			              reject('s3 file deletion error:' + e);
+			              return;
+			          });
 
-function delete_playlist_doc(playlist) {
-    return new Promise(function(resolve, reject) {
-	db.get(`playlist:${playlist}`)
-	    .then(function([body, headers]) {
-		db.destroy(body._id, body._rev)
-		    .then(function([body, headers]) {
-			console.log(`playlist doc ${playlist} destroyed`);
-			resolve(playlist);
-		    })
-		    .catch(function(err) {
-			console.error(`Removing playlist doc with error: ${err}`);
-			reject('error destroying playlist doc' + err);
-		    })
-			})
-	    .catch(function(err) {
-		console.error(`Get playlist doc with error: ${err}`);
-		reject(err);
-	    });
+                // now, delete the registry of playlist
+                // this query needs to be updated when multi-user is supported, as more than one user can point to the same Feed
+                let query = `MATCH (f:Feed {id: "${playlist}"})-[rel:HAS]->(e:Episode) DETACH DELETE f, rel, e;`;
+                let params = {limit: 1000};
+                console.log(`remove_playlist, query: ${query}`);
+                cypher(query, params, function (err, data) {
+                    if (err) {
+                        console.log("remove_playlist err: " + JSON.stringify(err));
+                        reject();
+                    } else {
+                        console.log("remove_playlist done: " + JSON.stringify(data));
+                        resolve();
+                    }
+                });
+            }
+        });
     });
 }
 
@@ -574,51 +501,47 @@ exports.remove_playlist = function(req, res) {
     var playlist = url.substr(url.lastIndexOf('/') + 1);
     console.log(`playlist: ${playlist}`);
     remove_playlist(playlist)
-	.then(function() {
-	    res.writeHead(200, {"Content-Type": "application/json"});
-	    res.end(JSON.stringify({result: "success"}));
-	})
-	.catch(function () {
-	    res.writeHead(200, {"Content-Type": "application/json"});
-	    res.end(JSON.stringify({result: "failure"}));
-	});
+	      .then(function() {
+	          res.writeHead(200, {"Content-Type": "application/json"});
+	          res.end(JSON.stringify({result: "success"}));
+	      })
+	      .catch(function () {
+	          res.writeHead(200, {"Content-Type": "application/json"});
+	          res.end(JSON.stringify({result: "failure"}));
+	      });
 }
 
 exports.list_feeds_json = function(req, res) {
-    db.view("playlist",
-	    "playlists",
-	    {
-		descending:true,
-		include_docs:true
-	    }
-	   ).then(function([body, headers]) {
-	       let r = body.rows;
-	       let list = [];
-	       res.writeHead(200, {"Content-Type": "application/json; charset=utf-8"});
-	       for (let i = 0, len = r.length; i < len; i++) {
-		   let id = r[i].doc._id;
-		   let playlist_id = id.substr(id.lastIndexOf(':') + 1);
-		   let title = r[i].doc.info.title;
-		   list.push({id: playlist_id, title: title});
-	       }
-	       res.write(JSON.stringify({playlists: list}));
-	       res.end();
-	   }).catch(function(err) {
-	       console.log(err);
-	       res.writeHead(200, {"Content-Type": "application/json"});
-	       res.end(JSON.stringify({result: "playlist not found"}));
-	   });
+    query = `MATCH (f:Feed) RETURN f.id, f.title;`;
+    params = {limit: 100};
+    console.log(`list_feeds_json, query: ${query}`);
+    let list = [];
+    cypher(query, params, function (err, data) {
+        if (err) {
+            console.log("list_feeds_json err: " + JSON.stringify(err));
+            reject();
+        } else {
+            console.log("list_feeds_json data: " + JSON.stringify(data));
+            res.writeHead(200, {"Content-Type": "application/json; charset=utf-8"});
+            let r = data.results[0].data;
+            for (let i = 0, len = r.length; i < len; i++) {
+                let id = r[i].row[0];
+                let title = r[i].row[1];
+                list.push({id: id, title: title});
+            }
+	          console.log(JSON.stringify(list));
+            res.write(JSON.stringify({playlists: list}));
+	          res.end();
+        }
+    });
 };
 
 exports.playlist_info = function(req, res) {
     let url = req.url; // /api/info/playlist/PLhQSOxFylseE_9B7Brn7E6ok9expnYiey
-    let playlist = 'playlist:' + url.substr(url.lastIndexOf('/') + 1);
-    db.get(playlist).then(function(r) {
-	let title = r[0].info.title;
-	res.writeHead(200, {"Content-Type": "application/json"});
-	res.end(JSON.stringify({result: 'success', info: {title: title}}));
+    let playlist = url.substr(url.lastIndexOf('/') + 1);
+    playlist_info(playlist).then(function(title) {
+        res.writeHead(200, {"Content-Type": "application/json"});
+	      res.end(JSON.stringify({result: 'success', info: {title: title}})); 
     }).catch(function(e) {
-	res.writeHead(200, {"Content-Type": "application/json"});
-	res.end(JSON.stringify({result: 'error', error: "error retrieving playlist info"}));
     });
-}
+};
