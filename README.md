@@ -3,7 +3,7 @@ A Node.js application that converts youtube playlist into audio podcast feeds.
 
 You can use it to DIY your own podcast service that turns your favorite youtube list (music?) into ads-free high quality audio podcast. 
 
-I am running my one on the [Bluemix Kubernetes](https://www.ibm.com/blogs/bluemix/2017/03/kubernetes-now-available-ibm-bluemix-container-service/) cluster.  However I can't tell you where it is until I have put in the OpenID support :)
+This is a pure Node.js application, no dependencies on any local OS commands. You can containerise it and run on any Kubernetes environment. 
 
 ## What's next
 In short term this is my plan:
