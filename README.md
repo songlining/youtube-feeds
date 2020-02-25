@@ -11,7 +11,20 @@ In short term this is my plan:
  2. OpenID support so people can create their one podcast list;
 
 ## Prerequisites
-  * CouchDB: registry of the feeds.  You need to create a [design document](https://github.com/songlining/youtube-feeds/blob/master/cloudant/design_doc) in your database.
+  * ~~CouchDB: registry of the feeds.  You need to create a [design document](https://github.com/songlining/youtube-feeds/blob/master/cloudant/design_doc) in your database.~~
+  * neo4j: the backend data store has changed to neo4j, it's so much easier to operate. Type the following Cypher statements after the database is created:
+```
+CREATE CONSTRAINT ON (f:Feed)
+ASSERT (f.id) IS NODE KEY
+
+CREATE CONSTRAINT ON (f:Feeds)
+ASSERT (f.user_id) IS NODE KEY
+
+CREATE CONSTRAINT ON (e:Episode)
+ASSERT (e.id) IS NODE KEY
+
+```
+  
   * S3 API compatible Object Storage: audio files are stored here
 
 # REST API's
