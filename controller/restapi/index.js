@@ -122,9 +122,10 @@ function list_episodes(playlist, n) {
 			                      playlist_title: playlist_title});
 		            }
 	          });
+            console.log("list_episode: " +  JSON.stringify(a));
 	          resolve(a);
 	      });
-    })
+    });
 }
 
 // download a single episode and return the S3 url
