@@ -1,10 +1,7 @@
 FROM mhart/alpine-node:6
 
 RUN apk update && apk upgrade && \
-    apk add --no-cache git py-pip ca-certificates
-RUN pip install --upgrade pip
-RUN pip install youtube-dl==2020.01.24
-RUN ln -s /usr/bin/youtube-dl /usr/local/bin/youtube-dl
+    apk add --no-cache git ca-certificates
 
 RUN mkdir -p /usr/src/app
 WORKDIR /usr/src/app/

@@ -12,9 +12,7 @@
  * limitations under the License.
  */
 
-const spawn = require('child_process').spawn;
-var yt_cmd = '/usr/local/bin/youtube-dl';
-
+var ytpl = require('ytpl');
 var ytdl = require('ytdl-core');
 var streamingS3 = require('streaming-s3');
 var stream = require('stream');
@@ -46,85 +44,57 @@ function cypher(query,params,cb) {
 exports.add_playlist = function(req, res) {
     var url = req.url; 
     var playlist_id = url.substr(url.lastIndexOf('/') + 1);
-    list_episodes(playlist_id, 10)
-	      .then(function(r) {
-	          res.writeHead(200, {"Content-Type": "application/json"});
-	          res.end(JSON.stringify({result: 'success'}));
-	          for (var i = 0, len = r.length; i < len; i++) {
-		            let url = r[i].url;
-		            let title = r[i].title;
-		            let upload_date = r[i].upload_date;
-		            let playlist_title = r[i].playlist_title;
-		            // episode_id will be used as _id and it can not start with underscore in CouchDB
-		            let episode_id = url.substr(url.lastIndexOf('/') + 1);
-		            let episode_file_name = url.substr(url.lastIndexOf('/') + 1) + '.m4a';
-		            let episode_s3_url = bucket_url + episode_file_name;
-		            check_file(episode_file_name).then(function() {
-		                console.log("File already existing in S3 or is being uploaded, no need to upload.");
-		            }, function() {
-		                // it's a new file, go download and upload to Object Storage
-		                console.log("File not in S3, go fetching and uploading...");
-		                register_episode(playlist_id, episode_id, episode_s3_url, title, upload_date, playlist_title);
-		                fetch_episode(url).catch(function(e) {
-			                  console.log(e);
-		                });
-                });
-	          }
-	      })
-	      .catch(function (e){
-	          var r = JSON.stringify(e);
-	          console.log(r);
-	          res.send(r);
-	      });
+    ytpl(playlist_id, {limit: 1}, function(err, playlist) {
+        if(err) throw err;
+        let playlist_title = playlist.title;
+	      register_playlist(playlist_id, playlist_title).then(
+            list_episodes(playlist_id, 10).then(function(r) {
+	              res.writeHead(200, {"Content-Type": "application/json"});
+	              res.end(JSON.stringify({result: 'success'}));
+	              for (var i = 0, len = r.length; i < len; i++) {
+		                let url = r[i].url;
+		                let title = r[i].title;
+		                // episode_id will be used as _id and it can not start with underscore in CouchDB
+		                let episode_id = url.substr(url.lastIndexOf('/') + 1);
+		                let episode_file_name = url.substr(url.lastIndexOf('/') + 1) + '.m4a';
+		                let episode_s3_url = bucket_url + episode_file_name;
+		                check_file(episode_file_name).then(function() {
+		                    console.log("File already existing in S3 or is being uploaded, no need to upload.");
+		                }, function() {
+		                    // it's a new file, go download and upload to Object Storage
+		                    console.log("File not in S3, go fetching and uploading...");
+		                    register_episode(playlist_id, episode_id, episode_s3_url, title, playlist_title);
+		                    fetch_episode(url).catch(function(e) {
+			                      console.log(e);
+		                    });
+                    });
+	              }
+	          })
+	          .catch(function (e){
+	              var r = JSON.stringify(e);
+	              console.log(r);
+	              res.send(r);
+	          }));
+    });
 }
 
 // return the last n episodes of a playlist
 function list_episodes(playlist, n) {
     return new Promise(function(resolve, reject) {
-	      let read_buffer = '';
-	      let cmd = spawn(yt_cmd, 
-			                  ['https://www.youtube.com/playlist?list=' + playlist, 
-			                   '-J', 
-			                   '--ignore-errors', 
-			                   '--playlist-end=' + n]);
-
-	      cmd.stdout.on('data', (data) => {
-	          read_buffer = read_buffer + data;
-	      });
-	      cmd.stderr.on('data', (data) => {
-	          console.log(`stderr: ${data}`);
-	      });
-	      cmd.on('close', (code) => {
-	          console.log(`child process exited with code ${code}`);
-	          try {
-		            var j = JSON.parse(read_buffer);
-	          } catch(e) {
-		            reject(e);
-		            return;
-	          }
-	          var a = [];
-	          try {
-		            var playlist_title = j.title;
-	          } catch (e) {
-		            console.log("Got error, reject the promise.")
-		            reject(e);
-		            return;
-	          }
-	          register_playlist(playlist, playlist_title);
-	          j.entries.forEach(function(e) {
-		            // a private episode can be a null value in the array
-		            // to test: 
-		            // curl -X PUT http://localhost:6003/api/playlist/PLATwx1z00HsdanKZcTMQEc-n_Bhu_aZ76
-		            if (e != null) {
-		                a.push({url: e.id,
-			                      title: e.title,
-			                      upload_date: e.upload_date,
-			                      playlist_title: playlist_title});
-		            }
-	          });
-            console.log("list_episode: " +  JSON.stringify(a));
-	          resolve(a);
-	      });
+        ytpl(playlist, {limit: n}, function(err, pl) {
+            if(err) {
+                reject(err);
+            };
+            let a = [];
+	          for (let i = 0, len = pl.items.length; i < len; i++) {
+                let id = pl.items[i].id;
+                let url = pl.items[i].url_simple;
+                let title = pl.items[i].title;
+                a.push({url: id,
+			                  title: title});
+            }
+            resolve(a);
+        });
     });
 }
 
@@ -182,7 +152,7 @@ function fetch_episode(url) {
 	          reject(e);
 	          return;
 	      });
-    })
+    });
 }
 
 // register the episode in CouchDB
@@ -190,16 +160,14 @@ function register_episode(playlist,
 			                    episode_id,
 			                    s3_url,
 			                    title,
-			                    upload_date,
 			                    playlist_title) {
     query = `
 MERGE (f:Feed {id: "${playlist}", title: "${playlist_title}"})
-MERGE (f)-[:HAS]->(e:Episode {id: "${episode_id}", s3_url: "${s3_url}", title: "${title}", upload_date: ${upload_date}, playlist_title: "${playlist_title}"})
+MERGE (f)-[:HAS]->(e:Episode {id: "${episode_id}", s3_url: "${s3_url}", title: "${title}"})
 RETURN e.id
 `;
-    params = {limit: 10};
     console.log(`register_episode, query: ${query}`);
-    cypher(query, params, function (err, data) {
+    cypher(query, {}, function (err, data) {
         if (err) {
             console.log("err: " + JSON.stringify(err));
         } else {
@@ -235,8 +203,8 @@ function playlist_to_feed(playlist) {
 		            // id: 'http://example.com/',
 		            // link: 'http://example.com/',
 	          });
-            let query = `MATCH (Feed {id: "${playlist}"})-[:HAS]->(e:Episode) RETURN e.title, e.s3_url, e.upload_date;`;
-            cypher(query, params, function (err, data) {
+            let query = `MATCH (Feed {id: "${playlist}"})-[:HAS]->(e:Episode) RETURN e.title, e.s3_url;`;
+            cypher(query, {}, function (err, data) {
                 if (err) {
                     console.log("playlist_to_feed err: " + JSON.stringify(err));
                     reject(err);
@@ -249,8 +217,7 @@ function playlist_to_feed(playlist) {
                         let d = e[i].row[2];
                         feed.addItem({
 			                      title: t,
-			                      link: url,
-			                      date: parseDateString(d.toString())
+			                      link: url
                         });
                     }
                     resolve(feed.rss2());
@@ -270,8 +237,7 @@ MERGE (feed:Feed {id: "${playlist}", title: "${title}"})
 MERGE (feeds)-[:HAS]->(feed)
 RETURN feed.id`;
         console.log(`register_playlist, query: ${query}`);
-        params = {limit: 10};
-        cypher(query, params, function (err, data) {
+        cypher(query, {}, function (err, data) {
             if (err) {
                 console.log("err: " + JSON.stringify(err));
                 reject(err);
@@ -289,9 +255,8 @@ function playlist_info(playlist) {
 MATCH (f:Feed {id: "${playlist}"})
 RETURN f.title
 `;
-        params = {limit: 10};
         console.log(`playlist_info, query: ${query}`);
-        cypher(query, params, function (err, data) {
+        cypher(query, {}, function (err, data) {
             if (err) {
                 console.log("err: " + JSON.stringify(err));
                 reject(err);
@@ -336,7 +301,7 @@ function check_file(file) {
                 let e = file.substr(0, file.lastIndexOf('.'));
                 query = `MATCH (e:Episode {id: "${e}"}) RETURN e.id`;
                 console.log(`check_file, query: ${query}`);
-                cypher(query, params, function (err, data) {
+                cypher(query, {}, function (err, data) {
                     if (err) {
                         console.log("err: " + JSON.stringify(err));
                         reject();
@@ -373,37 +338,18 @@ exports.process_url = function(req, res) {
     let url = req.body.url;
     url = 'https://' + url.match(/https?:\/\/([^\s]+)/)[1];
     // http won't work, has to convert to https
-    console.log("Converted to https: " + url); 
+    console.log("Converted to URL: " + url); 
     if (url.startsWith('https://www.youtube.com/user/') || 
         url.startsWith('http://www.youtube.com/user/') || 
         url.startsWith('https://www.youtube.com/channel/') || 
 	      url.startsWith('http://www.youtube.com/channel/')) {
-	      let read_buffer = '';
-	      let cmd = spawn(yt_cmd, 
-			                  [url,
-			                   '-J', 
-			                   '--ignore-errors', 
-			                   '--playlist-end=1']);
 
-	      cmd.stdout.on('data', (data) => {
-	          read_buffer = read_buffer + data;
-	      });
-	      cmd.stderr.on('data', (data) => {
-	          console.log(`stderr: ${data}`);
-	      });
-	      cmd.on('close', (code) => {
-	          console.log(`child process exited with code ${code}`);
-	          try {
-		            var j = JSON.parse(read_buffer);
-	          } catch(e) {
-		            console.log(e);
-	          }
-	          let playlist_url = j.webpage_url;
-	          var playlist_id = playlist_url.substr(playlist_url.lastIndexOf('=') + 1);
-	          console.log(`channel playlist: ${playlist_id}`);
+        // convert from channel to playlist id
+        ytpl.getPlaylistID(url, function(err, id) {
+	          console.log(`channel playlist: ${id}`);
 	          res.writeHead(200, {"Content-Type": "application/json"});
-	          res.end(JSON.stringify({playlist_id: playlist_id}));
-	      });
+	          res.end(JSON.stringify({playlist_id: id}));
+        });
     } else {
 	      res.writeHead(200, {"Content-Type": "application/json"});
 	      res.end(JSON.stringify({error: "Wrong URL format"}));
@@ -455,8 +401,7 @@ function remove_playlist(playlist) {
     return new Promise(function(resolve, reject) {
         // list all the episodes under this feed/playlist
         let query = `MATCH (Feed {id: "${playlist}"})-[:HAS]->(e:Episode) RETURN e.id, e.s3_url;`;
-        let params = {limit: 1000};
-        cypher(query, params, function (err, data) {
+        cypher(query, {}, function (err, data) {
             if (err) {
                 console.log("remove_playlist err: " + JSON.stringify(err));
                 reject();
@@ -481,9 +426,8 @@ function remove_playlist(playlist) {
                 // now, delete the registry of playlist
                 // this query needs to be updated when multi-user is supported, as more than one user can point to the same Feed
                 let query = `MATCH (f:Feed {id: "${playlist}"})-[rel:HAS]->(e:Episode) DETACH DELETE f, rel, e;`;
-                let params = {limit: 1000};
                 console.log(`remove_playlist, query: ${query}`);
-                cypher(query, params, function (err, data) {
+                cypher(query, {}, function (err, data) {
                     if (err) {
                         console.log("remove_playlist err: " + JSON.stringify(err));
                         reject();
@@ -514,10 +458,9 @@ exports.remove_playlist = function(req, res) {
 
 exports.list_feeds_json = function(req, res) {
     query = `MATCH (f:Feed) RETURN f.id, f.title;`;
-    params = {limit: 100};
     console.log(`list_feeds_json, query: ${query}`);
     let list = [];
-    cypher(query, params, function (err, data) {
+    cypher(query, {}, function (err, data) {
         if (err) {
             console.log("list_feeds_json err: " + JSON.stringify(err));
             reject();
