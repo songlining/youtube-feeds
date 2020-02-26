@@ -153,7 +153,6 @@ function fetch_episode(url) {
 	      });
 	      uploader.on('error', function (e) {
 	          console.log('Upload error: ', e);
-	          uploader.end();
 	          reject(e);
 	          return;
 	      });
