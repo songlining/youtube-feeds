@@ -45,7 +45,12 @@ exports.add_playlist = function(req, res) {
     var url = req.url; 
     var playlist_id = url.substr(url.lastIndexOf('/') + 1);
     ytpl(playlist_id, {limit: 1}, function(err, playlist) {
-        if(err) throw err;
+        if(err) {
+            console.log(`add_playlist err: ${JSON.stringify(err)}`);
+	          res.writeHead(200, {"Content-Type": "application/json"});
+	          res.end(JSON.stringify({result: err}));
+            return;
+        } 
         let playlist_title = playlist.title;
 	      register_playlist(playlist_id, playlist_title).then(
             list_episodes(playlist_id, 10).then(function(r) {

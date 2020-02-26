@@ -1,3 +1,4 @@
+echo "This script is for dockerhub container build"
 echo "Removing the image youtube-feeds:latest..."
 docker rmi `docker images|grep youtube-feeds|grep latest|awk '{print $3}'`
 echo "Tagging the latest image as youtube-feeds:latest"
