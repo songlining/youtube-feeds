@@ -317,7 +317,7 @@ function check_file(file) {
 	      client.s3.headObject({
 	          Bucket: 'yt-rss',
 	          Key: file
-	      }, function(err, data) {
+	      }, function(s3error, data) {
             // first of all, check if file is registered
             let e = file.substr(0, file.lastIndexOf('.'));
             query = `MATCH (e:Episode {id: "${e}"}) RETURN e.id`;
@@ -332,8 +332,8 @@ function check_file(file) {
                     console.log("data.length: " + data.results[0].data.length);
                     if (data.results[0].data.length == 0) {
                         // file is not registered
-                        if (err) {
-                            console.log(`file not in registry, not in S3, err: ${err}`);
+                        if (s3error && s3error.code == 'NotFound') {
+                            console.log(`file not in registry, not in S3, err: >>${JSON.stringify(s3error)}<<`);
                             resolve(0);
                         } else {
                             // file not in registry, in S3
@@ -341,7 +341,7 @@ function check_file(file) {
                             resolve(1);
                         }
                     } else {
-                        if (err) {
+                        if (s3error && s3error.code == 'NotFound') {
                             // file in registry, not in S3
                             console.log("file is in registry, not in S3");
                             resolve(2);
