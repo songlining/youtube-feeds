@@ -220,7 +220,6 @@ function playlist_to_feed(playlist) {
                         let t = e[i].row[0];
                         let url = e[i].row[1];
                         let d = e[i].row[2];
-                        console.log(`>>>>>>>>>>>> ${d}`);
                         feed.addItem({
 			                      title: t,
 			                      link: url,
