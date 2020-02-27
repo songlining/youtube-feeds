@@ -58,6 +58,7 @@ exports.add_playlist = function(req, res) {
 	              res.end(JSON.stringify({result: 'success'}));
 	              for (var i = 0, len = r.length; i < len; i++) {
 		                let url = r[i].url;
+		                let uploadDate = r[i].uploadDate;
 		                let title = r[i].title;
 		                // episode_id will be used as _id and it can not start with underscore in CouchDB
 		                let episode_id = url.substr(url.lastIndexOf('/') + 1);
@@ -68,7 +69,7 @@ exports.add_playlist = function(req, res) {
 		                }, function() {
 		                    // it's a new file, go download and upload to Object Storage
 		                    console.log("File not in S3, go fetching and uploading...");
-		                    register_episode(playlist_id, episode_id, episode_s3_url, title, playlist_title);
+		                    register_episode(playlist_id, episode_id, episode_s3_url, title, playlist_title, uploadDate);
 		                    fetch_episode(url).catch(function(e) {
 			                      console.log(e);
 		                    });
@@ -86,16 +87,18 @@ exports.add_playlist = function(req, res) {
 // return the last n episodes of a playlist
 function list_episodes(playlist, n) {
     return new Promise(function(resolve, reject) {
-        ytpl(playlist, {limit: n}, function(err, pl) {
+        ytpl(playlist, {limit: n}, async function(err, pl) {
             if(err) {
                 reject(err);
             };
             let a = [];
 	          for (let i = 0, len = pl.items.length; i < len; i++) {
                 let id = pl.items[i].id;
-                let url = pl.items[i].url_simple;
                 let title = pl.items[i].title;
+                let info = await ytdl.getInfo(id);
+                let uploadDate = info.player_response.microformat.playerMicroformatRenderer.uploadDate;
                 a.push({url: id,
+                        uploadDate: uploadDate,
 			                  title: title});
             }
             resolve(a);
@@ -164,10 +167,11 @@ function register_episode(playlist,
 			                    episode_id,
 			                    s3_url,
 			                    title,
-			                    playlist_title) {
+			                    playlist_title,
+                          uploadDate) {
     query = `
 MERGE (f:Feed {id: "${playlist}", title: "${playlist_title}"})
-MERGE (f)-[:HAS]->(e:Episode {id: "${episode_id}", s3_url: "${s3_url}", title: "${title}"})
+MERGE (f)-[:HAS]->(e:Episode {id: "${episode_id}", s3_url: "${s3_url}", title: "${title}", uploadDate: "${uploadDate}"})
 RETURN e.id
 `;
     console.log(`register_episode, query: ${query}`);
@@ -192,10 +196,7 @@ exports.playlist_feed = function(req, res) {
 }
 
 function parseDateString(s) {
-    let year = s.substring(0,4);
-    let month = s.substring(4,6);
-    let day = s.substring(6);
-    return new Date(`${year}-${month}-${day}`);
+    return new Date(s);
 }
 
 // https://www.npmjs.com/package/feed
@@ -207,7 +208,7 @@ function playlist_to_feed(playlist) {
 		            // id: 'http://example.com/',
 		            // link: 'http://example.com/',
 	          });
-            let query = `MATCH (Feed {id: "${playlist}"})-[:HAS]->(e:Episode) RETURN e.title, e.s3_url;`;
+            let query = `MATCH (Feed {id: "${playlist}"})-[:HAS]->(e:Episode) RETURN e.title, e.s3_url, e.uploadDate;`;
             cypher(query, {}, function (err, data) {
                 if (err) {
                     console.log("playlist_to_feed err: " + JSON.stringify(err));
@@ -219,9 +220,11 @@ function playlist_to_feed(playlist) {
                         let t = e[i].row[0];
                         let url = e[i].row[1];
                         let d = e[i].row[2];
+                        console.log(`>>>>>>>>>>>> ${d}`);
                         feed.addItem({
 			                      title: t,
-			                      link: url
+			                      link: url,
+                            date: parseDateString(d)
                         });
                     }
                     resolve(feed.rss2());
