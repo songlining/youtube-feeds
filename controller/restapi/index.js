@@ -87,15 +87,22 @@ exports.add_playlist = function(req, res) {
 // return the last n episodes of a playlist
 function list_episodes(playlist, n) {
     return new Promise(function(resolve, reject) {
-        ytpl(playlist, {limit: n}, async function(err, pl) {
+        ytpl(playlist, async function(err, pl) {
             if(err) {
                 reject(err);
             };
             let a = [];
-	          for (let i = 0, len = pl.items.length; i < len; i++) {
-                let id = pl.items[i].id;
-                let title = pl.items[i].title;
-                let info = await ytdl.getInfo(id);
+            let pl_latest = pl.items.reverse().slice(0, n);
+	          for (let i = 0, len = pl_latest.length; i < len; i++) {
+                let id = pl_latest[i].id;
+                let title = pl_latest[i].title;
+                let info = null;
+                try {
+                    info = await ytdl.getInfo(id);
+                } catch (e) {
+                    console.log(`list_episodes: ytdl.getInfo error: ${e}`);
+                    continue;
+                }
                 let uploadDate = info.player_response.microformat.playerMicroformatRenderer.uploadDate;
                 a.push({url: id,
                         uploadDate: uploadDate,
