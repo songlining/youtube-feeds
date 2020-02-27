@@ -58,21 +58,30 @@ exports.add_playlist = function(req, res) {
 	              res.end(JSON.stringify({result: 'success'}));
 	              for (var i = 0, len = r.length; i < len; i++) {
 		                let url = r[i].url;
-		                let uploadDate = r[i].uploadDate;
 		                let title = r[i].title;
 		                // episode_id will be used as _id and it can not start with underscore in CouchDB
 		                let episode_id = url.substr(url.lastIndexOf('/') + 1);
 		                let episode_file_name = url.substr(url.lastIndexOf('/') + 1) + '.m4a';
 		                let episode_s3_url = bucket_url + episode_file_name;
-		                check_file(episode_file_name).then(function() {
-		                    console.log("File already existing in S3 or is being uploaded, no need to upload.");
+		                check_file(episode_file_name).then(function(result) {
+                        switch (result) {
+                        case 0:
+		                        register_episode(playlist_id, episode_id, episode_s3_url, title, playlist_title);
+		                        fetch_episode(url).catch(function(e) {
+			                          console.log(e);
+		                        });
+                            break;
+                        case 1:
+		                        register_episode(playlist_id, episode_id, episode_s3_url, title, playlist_title);
+                            break;
+                        case 2:
+                            // assuming file is being downloaded, so no uploading to S3. Future version will have more granular measures.
+                            break;
+                        case 3:
+                            break;
+                        }
 		                }, function() {
 		                    // it's a new file, go download and upload to Object Storage
-		                    console.log("File not in S3, go fetching and uploading...");
-		                    register_episode(playlist_id, episode_id, episode_s3_url, title, playlist_title, uploadDate);
-		                    fetch_episode(url).catch(function(e) {
-			                      console.log(e);
-		                    });
                     });
 	              }
 	          })
@@ -87,7 +96,7 @@ exports.add_playlist = function(req, res) {
 // return the last n episodes of a playlist
 function list_episodes(playlist, n) {
     return new Promise(function(resolve, reject) {
-        ytpl(playlist, {limit: n}, async function(err, pl) {
+        ytpl(playlist, {limit: n}, function(err, pl) {
             if(err) {
                 reject(err);
             };
@@ -97,15 +106,7 @@ function list_episodes(playlist, n) {
                 let id = pl_latest[i].id;
                 let title = pl_latest[i].title;
                 let info = null;
-                try {
-                    info = await ytdl.getInfo(id);
-                } catch (e) {
-                    console.log(`list_episodes: ytdl.getInfo error: ${e}`);
-                    continue;
-                }
-                let uploadDate = info.player_response.microformat.playerMicroformatRenderer.uploadDate;
                 a.push({url: id,
-                        uploadDate: uploadDate,
 			                  title: title});
             }
             resolve(a);
@@ -170,12 +171,20 @@ function fetch_episode(url) {
 }
 
 // register the episode in CouchDB
-function register_episode(playlist,
-			                    episode_id,
-			                    s3_url,
-			                    title,
-			                    playlist_title,
-                          uploadDate) {
+async function register_episode(
+    playlist,
+		episode_id,
+		s3_url,
+		title,
+		playlist_title
+) {
+    let info = null;
+    try {
+        info = await ytdl.getInfo(episode_id);
+    } catch (e) {
+        console.log(`list_episodes: ytdl.getInfo error: ${e}`);
+    }
+    let uploadDate = info.player_response.microformat.playerMicroformatRenderer.uploadDate;
     query = `
 MERGE (f:Feed {id: "${playlist}", title: "${playlist_title}"})
 MERGE (f)-[:HAS]->(e:Episode {id: "${episode_id}", s3_url: "${s3_url}", title: "${title}", uploadDate: "${uploadDate}"})
@@ -309,38 +318,41 @@ function check_file(file) {
 	          Bucket: 'yt-rss',
 	          Key: file
 	      }, function(err, data) {
-	          if (err) {
-		            // file does not exist (err.statusCode == 404)
-                let e = file.substr(0, file.lastIndexOf('.'));
-                query = `MATCH (e:Episode {id: "${e}"}) RETURN e.id`;
-                console.log(`check_file, query: ${query}`);
-                cypher(query, {}, function (err, data) {
-                    if (err) {
-                        console.log("err: " + JSON.stringify(err));
-                        reject();
-                        return;
-                    } else {
-                        console.log("data: " + JSON.stringify(data));
-                        console.log("data.length: " + data.results[0].data.length);
-                        if (data.results[0].data.length == 0) {
-                            // file is not registered
-                            console.log("file not in registry");
-                            reject();
-                            return;
+            // first of all, check if file is registered
+            let e = file.substr(0, file.lastIndexOf('.'));
+            query = `MATCH (e:Episode {id: "${e}"}) RETURN e.id`;
+            console.log(`check_file, query: ${query}`);
+            cypher(query, {}, function (error, data) {
+                if (error) {
+                    console.log("registry check error: " + JSON.stringify(err));
+                    reject(0);
+                    return;
+                } else {
+                    console.log("data: " + JSON.stringify(data));
+                    console.log("data.length: " + data.results[0].data.length);
+                    if (data.results[0].data.length == 0) {
+                        // file is not registered
+                        if (err) {
+                            console.log(`file not in registry, not in S3, err: ${err}`);
+                            resolve(0);
                         } else {
-                            // we have registered that file already so it might have been downloaded
-                            // future improvement will be setting expiry of downloading based on timestamp
-                            console.log("file is in registry");
-                            resolve();
-                            return;
+                            // file not in registry, in S3
+                            console.log("file not in registry, in S3");
+                            resolve(1);
+                        }
+                    } else {
+                        if (err) {
+                            // file in registry, not in S3
+                            console.log("file is in registry, not in S3");
+                            resolve(2);
+                        } else {
+                            // file in registry, in S3
+                            console.log("file is in registry, in S3");
+                            resolve(3);
                         }
                     }
-                });
-	          } else {
-	              // file exists
-	              resolve();
-                return;
-            }
+                }
+            });
 	      });
     });
 }
@@ -432,8 +444,6 @@ function remove_playlist(playlist) {
 			              console.log("s3 files deleted");
 			          }).catch(function(e) {
 			              console.log("s3 file deletion error: " + e);
-			              reject('s3 file deletion error:' + e);
-			              return;
 			          });
 
                 // now, delete the registry of playlist
