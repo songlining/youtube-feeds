@@ -33,13 +33,6 @@ var neo4j_password = config.neo4j.password;
 var current_user_id = "0";
 var current_user_name = "larry";
 
-// neo4j cypher REST call
-function cypher(query,params,cb) {
-    r.post({uri:neo4j_url,
-            auth: {"username": neo4j_username, "password": neo4j_password},
-            json:{statements:[{statement:query, parameters:params}]}},
-           function(err,res) { cb(err,res.body)});
-}
 // add one playlist and download the episodes
 exports.add_playlist = function(req, res) {
     var url = req.url; 
@@ -51,14 +44,14 @@ exports.add_playlist = function(req, res) {
 	          res.end(JSON.stringify({result: err}));
             return;
         } 
-        let playlist_title = playlist.title;
+        let playlist_title = escape(playlist.title);
 	      register_playlist(playlist_id, playlist_title).then(
             list_episodes(playlist_id, 10).then(function(r) {
 	              res.writeHead(200, {"Content-Type": "application/json"});
 	              res.end(JSON.stringify({result: 'success'}));
 	              for (var i = 0, len = r.length; i < len; i++) {
 		                let url = r[i].url;
-		                let title = r[i].title;
+		                let title = escape(r[i].title);
 		                // episode_id will be used as _id and it can not start with underscore in CouchDB
 		                let episode_id = url.substr(url.lastIndexOf('/') + 1);
 		                let episode_file_name = url.substr(url.lastIndexOf('/') + 1) + '.m4a';
@@ -91,6 +84,98 @@ exports.add_playlist = function(req, res) {
 	              res.send(r);
 	          }));
     });
+}
+
+exports.playlist_feed = function(req, res) {
+    var url = req.url; // /api/feed/PLhQSOxFylseE_9B7Brn7E6ok9expnYiey
+    playlist_to_feed(url.substr(url.lastIndexOf('/') + 1)).then(function(body) {
+	      res.writeHead(200, {"Content-Type": "application/rss+xml"});
+	      res.end(body);
+    }).catch(function(e) {
+	      res.writeHead(200, {"Content-Type": "application/json"});
+	      res.end(JSON.stringify({result: e}));
+    });
+}
+
+// retrieve playlist id from channel or user URLs
+// curl --data "url=https://www.youtube.com/channel/UC9nnWZ9kRiNZ6d5UwF-sNKQ" http://localhost:6003/api/url
+exports.process_url = function(req, res) {
+    let url = req.body.url;
+    url = 'https://' + url.match(/https?:\/\/([^\s]+)/)[1];
+    // http won't work, has to convert to https
+    console.log("Converted to URL: " + url); 
+    if (url.startsWith('https://www.youtube.com/user/') || 
+        url.startsWith('http://www.youtube.com/user/') || 
+        url.startsWith('https://www.youtube.com/channel/') || 
+	      url.startsWith('http://www.youtube.com/channel/')) {
+
+        // convert from channel to playlist id
+        ytpl.getPlaylistID(url, function(err, id) {
+	          console.log(`channel playlist: ${id}`);
+	          res.writeHead(200, {"Content-Type": "application/json"});
+	          res.end(JSON.stringify({playlist_id: id}));
+        });
+    } else {
+	      res.writeHead(200, {"Content-Type": "application/json"});
+	      res.end(JSON.stringify({error: "Wrong URL format"}));
+    }
+}
+
+exports.remove_playlist = function(req, res) {
+    var url = req.url; 
+    var playlist = url.substr(url.lastIndexOf('/') + 1);
+    console.log(`playlist: ${playlist}`);
+    remove_playlist(playlist)
+	      .then(function() {
+	          res.writeHead(200, {"Content-Type": "application/json"});
+	          res.end(JSON.stringify({result: "success"}));
+	      })
+	      .catch(function () {
+	          res.writeHead(200, {"Content-Type": "application/json"});
+	          res.end(JSON.stringify({result: "failure"}));
+	      });
+}
+
+exports.list_feeds_json = function(req, res) {
+    query = `MATCH (f:Feed) RETURN f.id, f.title;`;
+    console.log(`list_feeds_json, query: ${query}`);
+    let list = [];
+    cypher(query, {}, function (err, data) {
+        if (err) {
+            console.log("list_feeds_json err: " + JSON.stringify(err));
+            reject();
+        } else {
+            console.log("list_feeds_json data: " + JSON.stringify(data));
+            res.writeHead(200, {"Content-Type": "application/json; charset=utf-8"});
+            let r = data.results[0].data;
+            for (let i = 0, len = r.length; i < len; i++) {
+                let id = r[i].row[0];
+                let title = unescape(r[i].row[1]);
+                list.push({id: id, title: title});
+            }
+	          console.log(JSON.stringify(list));
+            res.write(JSON.stringify({playlists: list}));
+	          res.end();
+        }
+    });
+};
+
+exports.playlist_info = function(req, res) {
+    let url = req.url; // /api/info/playlist/PLhQSOxFylseE_9B7Brn7E6ok9expnYiey
+    let playlist = url.substr(url.lastIndexOf('/') + 1);
+    playlist_info(playlist).then(function(title) {
+        res.writeHead(200, {"Content-Type": "application/json"});
+	      res.end(JSON.stringify({result: 'success', info: {title: title}})); 
+    }).catch(function(e) {
+    });
+};
+
+// neo4j cypher REST call
+function cypher(query,params,cb) {
+    r.post({uri:neo4j_url,
+            auth: {"username": neo4j_username, "password": neo4j_password},
+            json:{statements:[{statement:query, parameters:params}]}},
+           function(err,res) { cb(err,res.body)});
 }
 
 // return the last n episodes of a playlist
@@ -200,57 +285,6 @@ RETURN e.id
     });
 }
 
-exports.playlist_feed = function(req, res) {
-    var url = req.url; // /api/feed/PLhQSOxFylseE_9B7Brn7E6ok9expnYiey
-    playlist_to_feed(url.substr(url.lastIndexOf('/') + 1)).then(function(body) {
-	      res.writeHead(200, {"Content-Type": "application/rss+xml"});
-	      res.end(body);
-    }).catch(function(e) {
-	      res.writeHead(200, {"Content-Type": "application/json"});
-	      res.end(JSON.stringify({result: e}));
-    });
-}
-
-function parseDateString(s) {
-    return new Date(s);
-}
-
-// https://www.npmjs.com/package/feed
-function playlist_to_feed(playlist) {
-    return new Promise(function(resolve, reject) {
-	      playlist_info(playlist).then(function(title) {
-	          let feed = new Feed({
-		            title: title
-		            // id: 'http://example.com/',
-		            // link: 'http://example.com/',
-	          });
-            let query = `MATCH (Feed {id: "${playlist}"})-[:HAS]->(e:Episode) RETURN e.title, e.s3_url, e.uploadDate;`;
-            cypher(query, {}, function (err, data) {
-                if (err) {
-                    console.log("playlist_to_feed err: " + JSON.stringify(err));
-                    reject(err);
-                } else {
-                    console.log("playlist_to_feed data: " + JSON.stringify(data));
-                    let e = data.results[0].data;
-	                  for (let i = 0, len = e.length; i < len; i++) {
-                        let t = e[i].row[0];
-                        let url = e[i].row[1];
-                        let d = e[i].row[2];
-                        feed.addItem({
-			                      title: t,
-			                      link: url,
-                            date: parseDateString(d)
-                        });
-                    }
-                    resolve(feed.rss2());
-                }
-            });
-	      }).catch(function(e) {
-	          reject(e);
-	      });
-    })
-}
-
 function register_playlist(playlist, title) {
     return new Promise(function(resolve, reject) {
         query = `
@@ -271,6 +305,42 @@ RETURN feed.id`;
     });
 }
 
+// https://www.npmjs.com/package/feed
+function playlist_to_feed(playlist) {
+    return new Promise(function(resolve, reject) {
+	      playlist_info(playlist).then(function(title) {
+	          let feed = new Feed({
+		            title: title
+		            // id: 'http://example.com/',
+		            // link: 'http://example.com/',
+	          });
+            let query = `MATCH (Feed {id: "${playlist}"})-[:HAS]->(e:Episode) RETURN e.title, e.s3_url, e.uploadDate;`;
+            cypher(query, {}, function (err, data) {
+                if (err) {
+                    console.log("playlist_to_feed err: " + JSON.stringify(err));
+                    reject(err);
+                } else {
+                    console.log("playlist_to_feed data: " + JSON.stringify(data));
+                    let e = data.results[0].data;
+	                  for (let i = 0, len = e.length; i < len; i++) {
+                        let t = unescape(e[i].row[0]);
+                        let url = e[i].row[1];
+                        let d = e[i].row[2];
+                        feed.addItem({
+			                      title: t,
+			                      link: url,
+                            date: parseDateString(d)
+                        });
+                    }
+                    resolve(feed.rss2());
+                }
+            });
+	      }).catch(function(e) {
+	          reject(e);
+	      });
+    })
+}
+
 function playlist_info(playlist) {
     return new Promise(function(resolve, reject) {
         query = `
@@ -286,7 +356,7 @@ RETURN f.title
                 console.log("data: " + JSON.stringify(data));
                 try {
                     let title = data.results[0].data[0].row[0];
-                    resolve(title);
+                    resolve(unescape(title));
                 } catch (e) {
                     reject(e);
                 }
@@ -357,29 +427,6 @@ function check_file(file) {
     });
 }
 
-// retrieve playlist id from channel or user URLs
-// curl --data "url=https://www.youtube.com/channel/UC9nnWZ9kRiNZ6d5UwF-sNKQ" http://localhost:6003/api/url
-exports.process_url = function(req, res) {
-    let url = req.body.url;
-    url = 'https://' + url.match(/https?:\/\/([^\s]+)/)[1];
-    // http won't work, has to convert to https
-    console.log("Converted to URL: " + url); 
-    if (url.startsWith('https://www.youtube.com/user/') || 
-        url.startsWith('http://www.youtube.com/user/') || 
-        url.startsWith('https://www.youtube.com/channel/') || 
-	      url.startsWith('http://www.youtube.com/channel/')) {
-
-        // convert from channel to playlist id
-        ytpl.getPlaylistID(url, function(err, id) {
-	          console.log(`channel playlist: ${id}`);
-	          res.writeHead(200, {"Content-Type": "application/json"});
-	          res.end(JSON.stringify({playlist_id: id}));
-        });
-    } else {
-	      res.writeHead(200, {"Content-Type": "application/json"});
-	      res.end(JSON.stringify({error: "Wrong URL format"}));
-    }
-}
 
 // input sample: [ {Key: 'B7bqAsxee4I.m4a'}, {Key: 'BlKWMKpSiW0.m4a'} ];
 function s3_delete_files(files) {	
@@ -464,51 +511,6 @@ function remove_playlist(playlist) {
     });
 }
 
-exports.remove_playlist = function(req, res) {
-    var url = req.url; 
-    var playlist = url.substr(url.lastIndexOf('/') + 1);
-    console.log(`playlist: ${playlist}`);
-    remove_playlist(playlist)
-	      .then(function() {
-	          res.writeHead(200, {"Content-Type": "application/json"});
-	          res.end(JSON.stringify({result: "success"}));
-	      })
-	      .catch(function () {
-	          res.writeHead(200, {"Content-Type": "application/json"});
-	          res.end(JSON.stringify({result: "failure"}));
-	      });
+function parseDateString(s) {
+    return new Date(s);
 }
-
-exports.list_feeds_json = function(req, res) {
-    query = `MATCH (f:Feed) RETURN f.id, f.title;`;
-    console.log(`list_feeds_json, query: ${query}`);
-    let list = [];
-    cypher(query, {}, function (err, data) {
-        if (err) {
-            console.log("list_feeds_json err: " + JSON.stringify(err));
-            reject();
-        } else {
-            console.log("list_feeds_json data: " + JSON.stringify(data));
-            res.writeHead(200, {"Content-Type": "application/json; charset=utf-8"});
-            let r = data.results[0].data;
-            for (let i = 0, len = r.length; i < len; i++) {
-                let id = r[i].row[0];
-                let title = r[i].row[1];
-                list.push({id: id, title: title});
-            }
-	          console.log(JSON.stringify(list));
-            res.write(JSON.stringify({playlists: list}));
-	          res.end();
-        }
-    });
-};
-
-exports.playlist_info = function(req, res) {
-    let url = req.url; // /api/info/playlist/PLhQSOxFylseE_9B7Brn7E6ok9expnYiey
-    let playlist = url.substr(url.lastIndexOf('/') + 1);
-    playlist_info(playlist).then(function(title) {
-        res.writeHead(200, {"Content-Type": "application/json"});
-	      res.end(JSON.stringify({result: 'success', info: {title: title}})); 
-    }).catch(function(e) {
-    });
-};
