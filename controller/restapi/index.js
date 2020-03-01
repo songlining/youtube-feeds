@@ -12,6 +12,7 @@
  * limitations under the License.
  */
 
+const { promisify } = require("util");
 var ytpl = require('ytpl');
 var ytdl = require('ytdl-core');
 var streamingS3 = require('streaming-s3');
@@ -19,6 +20,7 @@ var stream = require('stream');
 const Feed = require('feed');
 var s3 = require('s3');
 var r=require("request");
+var rP = promisify(r.post);
 
 var config = require('../env.json');
 var accessKeyId = config.object_storage.accessKeyId;
@@ -56,25 +58,37 @@ exports.add_playlist = function(req, res) {
 		                let episode_id = url.substr(url.lastIndexOf('/') + 1);
 		                let episode_file_name = url.substr(url.lastIndexOf('/') + 1) + '.m4a';
 		                let episode_s3_url = bucket_url + episode_file_name;
-		                check_file(episode_file_name).then(function(result) {
+		                check_file(playlist_id, episode_file_name).then(function(result) {
                         switch (result) {
                         case 0:
+                            // file not in registry, not in S3
+                            // create_relationship(playlist_id, episode_id);
 		                        register_episode(playlist_id, episode_id, episode_s3_url, title, playlist_title);
 		                        fetch_episode(url).catch(function(e) {
 			                          console.log(e);
 		                        });
                             break;
                         case 1:
+                            // file not in registry, in S3
+                            // create_relationship(playlist_id, episode_id);
 		                        register_episode(playlist_id, episode_id, episode_s3_url, title, playlist_title);
                             break;
                         case 2:
+                            // file is in registry, not in S3, Feed relationship exists
                             // assuming file is being downloaded, so no uploading to S3. Future version will have more granular measures.
                             break;
                         case 3:
+                            // file is in registry, not in S3, Feed relationship does not exist
+                            break;
+                        case 4:
+                            // in S3file is in registry, in S3, Feed relationship exists
+                            break;
+                        case 5:
+                            // file is in registry, in S3, Feed relationship does not exist
+                            // create_relationship(playlist_id, episode_id);
                             break;
                         }
 		                }, function() {
-		                    // it's a new file, go download and upload to Object Storage
                     });
 	              }
 	          })
@@ -136,28 +150,29 @@ exports.remove_playlist = function(req, res) {
 	      });
 }
 
-exports.list_feeds_json = function(req, res) {
+exports.list_feeds_json = async function(req, res) {
     query = `MATCH (f:Feed) RETURN f.id, f.title;`;
     console.log(`list_feeds_json, query: ${query}`);
     let list = [];
-    cypher(query, {}, function (err, data) {
-        if (err) {
-            console.log("list_feeds_json err: " + JSON.stringify(err));
-            reject();
-        } else {
-            console.log("list_feeds_json data: " + JSON.stringify(data));
-            res.writeHead(200, {"Content-Type": "application/json; charset=utf-8"});
-            let r = data.results[0].data;
-            for (let i = 0, len = r.length; i < len; i++) {
-                let id = r[i].row[0];
-                let title = unescape(r[i].row[1]);
-                list.push({id: id, title: title});
-            }
-	          console.log(JSON.stringify(list));
-            res.write(JSON.stringify({playlists: list}));
-	          res.end();
+    try {
+        let data = await cypher_async(query, {});
+        console.log("list_feeds_json data: " + JSON.stringify(data));
+        res.writeHead(200, {"Content-Type": "application/json; charset=utf-8"});
+        let r = data.results[0].data;
+        for (let i = 0, len = r.length; i < len; i++) {
+            let id = r[i].row[0];
+            let title = unescape(r[i].row[1]);
+            list.push({id: id, title: title});
         }
-    });
+	      console.log(JSON.stringify(list));
+        res.write(JSON.stringify({playlists: list}));
+	      res.end();
+    } catch (e) {
+        console.log("list_feeds_json err: " + JSON.stringify(err));
+	      res.writeHead(200, {"Content-Type": "application/json"});
+	      res.end(JSON.stringify({result: e}));
+        return;
+    }
 };
 
 exports.playlist_info = function(req, res) {
@@ -176,6 +191,18 @@ function cypher(query,params,cb) {
             auth: {"username": neo4j_username, "password": neo4j_password},
             json:{statements:[{statement:query, parameters:params}]}},
            function(err,res) { cb(err,res.body)});
+}
+
+async function cypher_async(query,params) {
+    try {
+        result = await rP({uri:neo4j_url,
+                           auth: {"username": neo4j_username, "password": neo4j_password},
+                           json:{statements:[{statement:query, parameters:params}]}}
+                         );
+        return result.body;
+    } catch (e) {
+        throw e;
+    }
 }
 
 // return the last n episodes of a playlist
@@ -285,24 +312,20 @@ RETURN e.id
     });
 }
 
-function register_playlist(playlist, title) {
-    return new Promise(function(resolve, reject) {
-        query = `
+async function register_playlist(playlist, title) {
+    query = `
 MERGE (feeds:Feeds {user_id: ${current_user_id}, user_name: "${current_user_name}"})
 MERGE (feed:Feed {id: "${playlist}", title: "${title}"})
 MERGE (feeds)-[:HAS]->(feed)
 RETURN feed.id`;
-        console.log(`register_playlist, query: ${query}`);
-        cypher(query, {}, function (err, data) {
-            if (err) {
-                console.log("err: " + JSON.stringify(err));
-                reject(err);
-            } else {
-                console.log("data: " + JSON.stringify(data));
-                resolve(data);
-            }
-        });
-    });
+    console.log(`register_playlist, query: ${query}`);
+    let data = await cypher_async(query, {});
+    try {
+        console.log("data: " + JSON.stringify(data));
+        return data;
+    } catch (e) {
+        console.log("err: " + JSON.stringify(e));
+    }
 }
 
 // https://www.npmjs.com/package/feed
@@ -365,7 +388,7 @@ RETURN f.title
     });
 }
 
-function check_file(file) {	
+function check_file(playlist_id, file) {	
     return new Promise(function(resolve, reject) {
 	      var client = s3.createClient({
 	          maxAsyncS3: 20, // this is the default
@@ -390,7 +413,11 @@ function check_file(file) {
 	      }, function(s3error, data) {
             // first of all, check if file is registered
             let e = file.substr(0, file.lastIndexOf('.'));
-            query = `MATCH (e:Episode {id: "${e}"}) RETURN e.id`;
+            query = `
+MATCH (e:Episode {id: "${e}"})
+OPTIONAL MATCH (f:Feed {id: "${playlist_id}"})-[:HAS]->(e)
+RETURN e.id, f.id
+`;
             console.log(`check_file, query: ${query}`);
             cypher(query, {}, function (error, data) {
                 if (error) {
@@ -401,8 +428,8 @@ function check_file(file) {
                     console.log("data: " + JSON.stringify(data));
                     console.log("data.length: " + data.results[0].data.length);
                     if (data.results[0].data.length == 0) {
-                        // file is not registered
                         if (s3error && s3error.code == 'NotFound') {
+                            // file is not registered, not in S3
                             console.log(`file not in registry, not in S3, err: >>${JSON.stringify(s3error)}<<`);
                             resolve(0);
                         } else {
@@ -413,12 +440,24 @@ function check_file(file) {
                     } else {
                         if (s3error && s3error.code == 'NotFound') {
                             // file in registry, not in S3
-                            console.log("file is in registry, not in S3");
-                            resolve(2);
+                            if (data.results[0].data[0].row[1]) {
+                                // Feed relationship exists
+                                console.log("file is in registry, not in S3, Feed relationship exists");
+                                resolve(2);
+                            } else {
+                                // Feed relationship doesn't not exist
+                                console.log("file is in registry, not in S3, Feed relationship does not exist");
+                                resolve(3);
+                            }
                         } else {
                             // file in registry, in S3
-                            console.log("file is in registry, in S3");
-                            resolve(3);
+                            if (data.results[0].data[0].row[1]) {
+                                console.log("file is in registry, in S3, Feed relationship exists");
+                                resolve(4);
+                            } else {
+                                console.log("file is in registry, in S3, Feed relationship does not exist");
+                                resolve(5);
+                            }
                         }
                     }
                 }
