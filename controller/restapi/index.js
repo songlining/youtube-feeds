@@ -62,7 +62,6 @@ exports.add_playlist = function(req, res) {
                         switch (result) {
                         case 0:
                             // file not in registry, not in S3
-                            // create_relationship(playlist_id, episode_id);
 		                        register_episode(playlist_id, episode_id, episode_s3_url, title, playlist_title);
 		                        fetch_episode(url).catch(function(e) {
 			                          console.log(e);
@@ -70,7 +69,6 @@ exports.add_playlist = function(req, res) {
                             break;
                         case 1:
                             // file not in registry, in S3
-                            // create_relationship(playlist_id, episode_id);
 		                        register_episode(playlist_id, episode_id, episode_s3_url, title, playlist_title);
                             break;
                         case 2:
@@ -79,13 +77,14 @@ exports.add_playlist = function(req, res) {
                             break;
                         case 3:
                             // file is in registry, not in S3, Feed relationship does not exist
+                            register_feed_and_rel(playlist_id, episode_id);
                             break;
                         case 4:
                             // in S3file is in registry, in S3, Feed relationship exists
                             break;
                         case 5:
                             // file is in registry, in S3, Feed relationship does not exist
-                            // create_relationship(playlist_id, episode_id);
+                            register_feed_and_rel(playlist_id, episode_id);
                             break;
                         }
 		                }, function() {
@@ -297,19 +296,19 @@ async function register_episode(
         console.log(`list_episodes: ytdl.getInfo error: ${e}`);
     }
     let uploadDate = info.player_response.microformat.playerMicroformatRenderer.uploadDate;
-    query = `
+    let query = `
 MERGE (f:Feed {id: "${playlist}", title: "${playlist_title}"})
 MERGE (f)-[:HAS]->(e:Episode {id: "${episode_id}", s3_url: "${s3_url}", title: "${title}", uploadDate: "${uploadDate}"})
 RETURN e.id
 `;
     console.log(`register_episode, query: ${query}`);
-    cypher(query, {}, function (err, data) {
-        if (err) {
-            console.log("err: " + JSON.stringify(err));
-        } else {
-            console.log("data: " + JSON.stringify(data));
-        }
-    });
+    try {
+        let data = await cypher_async(query, {});
+        console.log("data: " + JSON.stringify(data));
+        return;
+    } catch (err) {
+        console.log("err: " + JSON.stringify(err));
+    }
 }
 
 async function register_playlist(playlist, title) {
@@ -508,48 +507,85 @@ function s3_delete_files(files) {
     });
 }
 
-function remove_playlist(playlist) {
-    return new Promise(function(resolve, reject) {
+async function remove_playlist(playlist) {
         // list all the episodes under this feed/playlist
-        let query = `MATCH (Feed {id: "${playlist}"})-[:HAS]->(e:Episode) RETURN e.id, e.s3_url;`;
-        cypher(query, {}, function (err, data) {
-            if (err) {
-                console.log("remove_playlist err: " + JSON.stringify(err));
-                reject();
-            } else {
-                console.log("remove_playlist list of episodes: " + JSON.stringify(data));
-                let files_to_delete = [];
-                let episodes = data.results[0].data;
-	              for (let i = 0, len = episodes.length; i < len; i++) {
-                    let s3_url = episodes[i].row[1];
-                    let s3_file_name = s3_url.substr(s3_url.lastIndexOf('/') + 1);
-                    files_to_delete.push({Key: s3_file_name});
-                }
-                console.log("remove_playlist list of s3 file names: " + JSON.stringify(files_to_delete));
-                s3_delete_files(files_to_delete).then(function() {
-			              console.log("s3 files deleted");
-			          }).catch(function(e) {
-			              console.log("s3 file deletion error: " + e);
-			          });
-
-                // now, delete the registry of playlist
-                // this query needs to be updated when multi-user is supported, as more than one user can point to the same Feed
-                let query = `MATCH (f:Feed {id: "${playlist}"})-[rel:HAS]->(e:Episode) DETACH DELETE f, rel, e;`;
-                console.log(`remove_playlist, query: ${query}`);
-                cypher(query, {}, function (err, data) {
-                    if (err) {
-                        console.log("remove_playlist err: " + JSON.stringify(err));
-                        reject();
+        try {
+            let query = `MATCH (Feed {id: "${playlist}"})-[:HAS]->(e:Episode) RETURN e.id, e.s3_url;`;
+            let data = await cypher_async(query, {});
+            console.log("remove_playlist list of episodes: " + JSON.stringify(data));
+            let files_to_delete = [];
+            let episodes = data.results[0].data;
+            let episodes_in_registry = [];
+	          for (let i = 0, len = episodes.length; i < len; i++) {
+                // check if this episode is only associated with this playlist
+                let eid = episodes[i].row[0];
+                try {
+                    query = `MATCH (e:Episode {id: "${eid}"})<-[rel:HAS]-(f:Feed) RETURN rel`;
+                    let data = await cypher_async(query, {});
+                    if (data.results[0].data.length > 1) {
+                        // there are other Feed's pointing to this episode, we won't remove it from registry and S3
+                        console.log(`remove_playlist, this episode has other Feed pointing to it.`);
+                        continue;
                     } else {
-                        console.log("remove_playlist done: " + JSON.stringify(data));
-                        resolve();
+                        // we can safely remove this episode from registry and S3
+                        let s3_url = episodes[i].row[1];
+                        let s3_file_name = s3_url.substr(s3_url.lastIndexOf('/') + 1);
+                        files_to_delete.push({Key: s3_file_name});
+                        episodes_in_registry.push(eid);
                     }
-                });
+                } catch (error) {
+                    throw error;
+                }
             }
-        });
-    });
+            console.log("remove_playlist list of s3 file names: " + JSON.stringify(files_to_delete));
+            s3_delete_files(files_to_delete).then(function() {
+			          console.log("s3 files deleted");
+			      }).catch(function(e) {
+			          console.log("s3 file deletion error: " + e);
+			      });
+            try {
+                // now, delete the registry of playlist
+                query = `MATCH (f:Feed {id: "${playlist}"}) DETACH DELETE f;`;
+                console.log(`remove_playlist, query: ${query}`);
+                data = await cypher_async(query, {});
+                console.log("remove_playlist done: " + JSON.stringify(data));
+            } catch (err) {
+                console.log("remove_playlist err: " + JSON.stringify(err));
+                throw err;
+            }
+            try {
+                // delete the registry of episodes
+                let l = JSON.stringify(episodes_in_registry);
+                query = `MATCH (e:Episode) WHERE e.id in ${l} DETACH DELETE e`;
+                console.log(`remove_playlist, query: ${query}`);
+                data = await cypher_async(query, {});
+                console.log("remove_playlist done: " + JSON.stringify(data));
+            } catch (err) {
+                console.log("remove_playlist err: " + JSON.stringify(err));
+                throw err;
+            }
+        } catch (err) {
+            console.log("remove_playlist err: " + JSON.stringify(err));
+            throw err;
+        }
 }
 
 function parseDateString(s) {
     return new Date(s);
+}
+
+async function register_feed_and_rel(playlist_id, episode_id) {
+    let query = `
+MATCH (e:Episode {id: "${episode_id}"})
+MATCH (f:Feed {id: "${playlist_id}"})
+MERGE (f)-[rel:HAS]->(e)
+`;
+    console.log(`register_feed_and_rel, query: ${query}`);
+    try {
+        let data = await cypher_async(query, {});
+        console.log("data: " + JSON.stringify(data));
+        return;
+    } catch (err) {
+        console.log("err: " + JSON.stringify(err));
+    }
 }
