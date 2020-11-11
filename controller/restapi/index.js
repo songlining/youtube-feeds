@@ -54,7 +54,8 @@ exports.add_playlist = function(req, res) {
 	              for (var i = 0, len = r.length; i < len; i++) {
 		                let url = r[i].url;
 		                let title = escape(r[i].title);
-		                // episode_id will be used as _id and it can not start with underscore in CouchDB
+		                // episode_id will be used as _id and it can not start with underscore in CouchDB - this limitation 
+			        // is obsolete as we are using neo4j now.
 		                let episode_id = url.substr(url.lastIndexOf('/') + 1);
 		                let episode_file_name = url.substr(url.lastIndexOf('/') + 1) + '.m4a';
 		                let episode_s3_url = bucket_url + episode_file_name;
@@ -281,7 +282,7 @@ function fetch_episode(url) {
     });
 }
 
-// register the episode in CouchDB
+// register the episode
 async function register_episode(
     playlist,
 		episode_id,
