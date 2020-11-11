@@ -97,7 +97,7 @@ If you want to setup a personal RSS feed like me you have various options either
 If you use the Lite/free IBM K8S cluster you will be able to run your containers in a free node with 2 CPU's and 4GB of RAM. It's good enough to serve the podcast service for yourself.  The Lite cluster won't give you Ingress or Load Balancer functions. You will only be able to use NodePort to expose your service.  Well, it's free and for me it's good enough.
 
 ## env.json
-[A sample env.json file](https://github.com/songlining/youtube-feeds/blob/master/controller/env.json) has been provided for your reference.  You need to populate this file with your own credentials.
+[A sample env.json file](https://github.com/songlining/youtube-feeds/blob/master/controller/env.json.sample) has been provided for your reference.  You need to populate this file with your own credentials.
 
 # Limitation
 I am still working on the reason why podcast players on Apple devices can't play the podcasts.  My favorite podcast player is Podcast Addict which works like charm.
