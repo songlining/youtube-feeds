@@ -6,7 +6,9 @@
   "main": "index.js",
   "scripts": {
     "test": "\"\"",
-    "start": "node index.js"
+    "start": "node index.js",
+    "prepare": "npm run snyk-protect",
+    "snyk-protect": "snyk-protect"
   },
   "keywords": [
     "youtube",
@@ -24,18 +26,20 @@
     "feed": "^1.0.2",
     "fs": "0.0.1-security",
     "http": "0.0.0",
-    "jquery": "^3.4.1",
-    "nano": "^6.2.0",
+    "jquery": "^3.5.0",
+    "nano": "^6.4.4",
     "nano-promises": "^1.2.0",
     "natives": "^1.1.6",
     "path": "^0.12.7",
-    "pug": "^2.0.0-rc.1",
-    "request": "^2.72.0",
+    "pug": "^3.0.1",
+    "request": "^2.88.0",
     "rss": "^1.2.2",
     "s3": "^4.4.0",
-    "streaming-s3": "^0.4.1",
+    "streaming-s3": "^0.4.5",
     "util": "^0.12.2",
     "ytdl-core": "^1.0.7",
-    "ytpl": "^0.1.20"
-  }
+    "ytpl": "^0.1.20",
+    "@snyk/protect": "latest"
+  },
+  "snyk": true
 }
