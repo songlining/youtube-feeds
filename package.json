@@ -20,7 +20,7 @@
     "bootstrap": "^3.4.1",
     "clipboard": "^1.7.1",
     "cookie-parser": "^1.4.1",
-    "express": "^4.16.3",
+    "express": "^4.21.2",
     "feed": "^1.0.2",
     "fs": "0.0.1-security",
     "http": "0.0.0",
