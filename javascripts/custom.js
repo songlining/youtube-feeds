@@ -1,6 +1,13 @@
 
 $(function(){
-    new Clipboard('.btn');
+    var clipboard = new ClipboardJS('.btn');
+    clipboard.on('success', function(e) {
+        console.log('Copied:', e.text);
+        e.clearSelection();
+    });
+    clipboard.on('error', function(e) {
+        console.error('Copy failed');
+    });
     show_playlists();
     $(document).on("click", ".playlist", function (event) {
         let elem = $(event.currentTarget);
@@ -13,35 +20,49 @@ $(function(){
     });
     $(document).on("click", "#add_url.btn", function (event) {
 	let url = $('#url').val();
-	if (!url.match(/https?:\/\/www.youtube.com\/(playlist|channel|user)/)) {
-	    alert(`URL format must be either: 
-  http(s)://www.youtube.com/playlist?list=... or 
-  http(s)://www.youtube.com/user/... or 
-  http(s)://www.youtube.com/channel/...
-		 `);
-	    return;
+
+	// Extract playlist ID from various YouTube URL formats
+	let playlistId = null;
+
+	// Check for playlist in watch URL (e.g., watch?v=xxx&list=PLxxx or list=RDxxx)
+	let watchMatch = url.match(/[?&]list=([^&]+)/);
+	if (watchMatch) {
+	    playlistId = watchMatch[1];
 	}
-	url = url.match(/(https?:[^\s]+)/)[1];
-	if (url.startsWith('https://www.youtube.com/playlist?list=') ||
-	    url.startsWith('http://www.youtube.com/playlist?list=')) {
-	    let playlist = url.substr(url.lastIndexOf('=') + 1);
-	    $.ajax({url: `/api/playlist/${playlist}`, success: function(result){
-		poll_playlist_add_status(playlist, 1, 10);
+	// Check for direct playlist URL
+	else if (url.match(/youtube.com\/playlist\?list=([^&]+)/)) {
+	    playlistId = url.match(/youtube.com\/playlist\?list=([^&]+)/)[1];
+	}
+
+	// If we found a playlist ID, use it
+	if (playlistId) {
+	    $.ajax({url: `/api/playlist/${playlistId}`, success: function(result){
+		poll_playlist_add_status(playlistId, 1, 10);
 	    }});
-	} else if (url.startsWith('https://www.youtube.com/channel/') ||
-		   url.startsWith('http://www.youtube.com/channel/') ||
-		   url.startsWith('https://www.youtube.com/user/') ||
-		   url.startsWith('http://www.youtube.com/user/')) {
-	    $.ajax({url: '/api/url', 
+	}
+	// Handle channel/user URLs
+	else if (url.match(/youtube.com\/(channel|user)\//)) {
+	    $.ajax({url: '/api/url',
 		    data: 'url=' + url,
-		    type: "POST", 
+		    type: "POST",
 		    success: function(result){
+			if (result.error) {
+			    alert(result.error);
+			    return;
+			}
 			let playlist = result.playlist_id;
 			console.log(`channel playlist: ${playlist}`);
 			$.ajax({url: `/api/playlist/${playlist}`, success: function(result){
 			    poll_playlist_add_status(playlist, 1, 10);
 			}});
 		    }});
+	}
+	else {
+	    alert(`URL format must be either:
+  - Playlist URL: https://www.youtube.com/playlist?list=PLxxx
+  - Video with playlist: https://www.youtube.com/watch?v=xxx&list=PLxxx
+  - Channel URL: https://www.youtube.com/channel/UCxxx
+  - User URL: https://www.youtube.com/user/username`);
 	}
     });
     $(document).on("click", ".delete", function (event) {

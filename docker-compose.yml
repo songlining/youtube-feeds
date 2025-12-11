@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # MinIO - S3-compatible object storage
+  minio:
+    image: minio/minio:latest
+    container_name: youtube-feeds-minio
+    ports:
+      - "9000:9000"      # API port
+      - "9001:9001"      # Console UI port
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # Neo4j - Graph database
+  neo4j:
+    image: neo4j:latest
+    container_name: youtube-feeds-neo4j
+    ports:
+      - "7474:7474"      # HTTP
+      - "7687:7687"      # Bolt
+    environment:
+      NEO4J_AUTH: neo4j/testpassword
+      NEO4J_PLUGINS: '["apoc"]'
+    volumes:
+      - neo4j-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:7474"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # YouTube Feeds App
+  youtube-feeds:
+    build: .
+    container_name: youtube-feeds-app
+    ports:
+      - "6003:6003"
+    volumes:
+      - ./controller:/app/controller
+      - ./www:/app/www
+      - ./javascripts:/app/javascripts
+      - ./css:/app/css
+    depends_on:
+      - minio
+      - neo4j
+    environment:
+      NODE_ENV: development
+
+volumes:
+  minio-data:
+  neo4j-data:

@@ -20,10 +20,10 @@ var frontend = require('./frontend/index');
 
 module.exports = router;
 
-router.get('/api/playlist/*', restapi.add_playlist);
-router.delete('/api/playlist/*', restapi.remove_playlist);
-router.get('/api/feed/*', restapi.playlist_feed);
-router.get('/api/info/playlist/*', restapi.playlist_info);
+router.get('/api/playlist/:id', restapi.add_playlist);
+router.delete('/api/playlist/:id', restapi.remove_playlist);
+router.get('/api/feed/:id', restapi.playlist_feed);
+router.get('/api/info/playlist/:id', restapi.playlist_info);
 router.post('/api/url', restapi.process_url);
 // router.get('/index.html', restapi.list_feeds);
 router.get('/api/playlists', restapi.list_feeds_json);
