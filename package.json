@@ -22,7 +22,7 @@
     "@aws-sdk/client-s3": "^3.712.0",
     "@aws-sdk/lib-storage": "^3.712.0",
     "@distube/ytdl-core": "^4.16.12",
-    "@distube/ytpl": "^1.2.3",
+    "@distube/ytpl": "^1.2.4",
     "axios": "^1.7.9",
     "body-parser": "^2.2.1",
     "bootstrap": "^5.3.8",
