@@ -23,7 +23,7 @@
     "@aws-sdk/lib-storage": "^3.712.0",
     "@distube/ytdl-core": "^4.16.12",
     "@distube/ytpl": "^1.2.3",
-    "axios": "^1.7.9",
+    "axios": "^1.13.5",
     "body-parser": "^2.2.1",
     "bootstrap": "^5.3.8",
     "clipboard": "^2.0.11",
